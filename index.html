@@ -169,12 +169,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
     </div>
     <div class="tf-bar">
       <span style="color:var(--text3);font-size:9px;margin-right:4px">PERIOD:</span>
-      <button class="tf-btn" onclick="setTF(this,'1week','5min')">1W</button>
-      <button class="tf-btn active" onclick="setTF(this,'1month','1day')">1M</button>
-      <button class="tf-btn" onclick="setTF(this,'3months','1day')">3M</button>
+      <button class="tf-btn active" onclick="setTF(this,'1day','15min')">1D</button>
+      <button class="tf-btn" onclick="setTF(this,'5day','15min')">5D</button>
+      <button class="tf-btn" onclick="setTF(this,'1month','1h')">1M</button>
+      <button class="tf-btn" onclick="setTF(this,'3month','1day')">3M</button>
       <button class="tf-btn" onclick="setTF(this,'1year','1week')">1Y</button>
-      <button class="tf-btn" onclick="setTF(this,'5years','1month')">5Y</button>
-      <span style="margin-left:auto;font-size:9px" id="chartSrc" class="nt">Twelve Data</span>
+      <span style="margin-left:auto;font-size:9px" id="chartSrc" class="nt">Twelve Data · 15min delay</span>
     </div>
     <div class="chart-area"><canvas id="mainChart"></canvas></div>
   </div>
@@ -297,8 +297,8 @@ const ECON = [
 let qCache   = {};
 let chCache  = {};
 let selected = null;
-let tfRange  = '1month';
-let tfIntvl  = '1day';
+let tfRange  = '1day';
+let tfIntvl  = '15min';
 let myChart  = null;
 let tab      = 'all';
 
@@ -360,11 +360,20 @@ function timeAgo(ts){
 }
 
 // ─── TWELVE DATA: FETCH CHART ─────────────────────────────────────────────────
-async function fetchTDChart(tdSym, outputsize=90) {
-  const cacheKey = tdSym + '_' + tfRange;
+async function fetchTDChart(tdSym) {
+  const cacheKey = tdSym + '_' + tfRange + '_' + tfIntvl;
   if(chCache[cacheKey]) return chCache[cacheKey];
-
   if(!TD_KEY) return null;
+
+  // Map range to outputsize (number of candles)
+  const sizeMap = {
+    '1day':   96,   // 1 day  x 96 x 15min bars
+    '5day':   160,  // 5 days x 32 x 15min bars
+    '1month': 480,  // 1 month x 1h bars (~20 trading days x 24)
+    '3month': 90,   // 3 months daily bars
+    '1year':  52,   // 1 year weekly bars
+  };
+  const outputsize = sizeMap[tfRange] || 96;
 
   const d = await tdGet('time_series', {
     symbol: tdSym,
@@ -376,8 +385,15 @@ async function fetchTDChart(tdSym, outputsize=90) {
 
   if(!d || d.status==='error' || !d.values || !d.values.length) return null;
 
-  const dates  = d.values.map(v => {
+  const isIntraday = tfIntvl.includes('min') || tfIntvl === '1h';
+  const dates = d.values.map(v => {
     const dt = new Date(v.datetime);
+    if(isIntraday && tfRange === '1day') {
+      return dt.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    } else if(isIntraday) {
+      return dt.toLocaleDateString('id-ID',{month:'short',day:'numeric'}) + ' ' +
+             dt.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    }
     return dt.toLocaleDateString('id-ID',{month:'short',day:'numeric'});
   });
   const prices = d.values.map(v => parseFloat(v.close));
@@ -390,7 +406,7 @@ async function fetchTDChart(tdSym, outputsize=90) {
 // ─── FALLBACK: GENERATE SIMULATED CHART ───────────────────────────────────────
 function generateSimChart(currentPrice, isUp, idr) {
   const pts = {
-    '1week':12, '1month':30, '3months':90, '1year':260, '5years':260
+    '1day':32, '5day':160, '1month':480, '3month':90, '1year':52
   }[tfRange] || 30;
 
   const dates=[], prices=[];
@@ -399,7 +415,10 @@ function generateSimChart(currentPrice, isUp, idr) {
   const drift = isUp ? 0.002 : -0.002;
 
   for(let i=0; i<pts; i++){
-    const d = new Date(Date.now() - (pts-i)*86400000*(tfRange==='5years'?7:1));
+    const isIntra = tfIntvl.includes('min') || tfIntvl==='1h';
+    const msStep = isIntra ? (tfIntvl==='1h'?3600000:900000) : 86400000;
+    const d = new Date(Date.now() - (pts-i)*msStep);
+    if(!isIntra && (d.getDay()===0||d.getDay()===6)) continue;
     if(d.getDay()===0||d.getDay()===6) continue;
     dates.push(d.toLocaleDateString('id-ID',{month:'short',day:'numeric'}));
     prices.push(parseFloat(p.toFixed(idr?0:4)));
@@ -452,7 +471,7 @@ async function renderChart(sym) {
     document.getElementById('chartSrc').textContent = '⚠ Simulasi — setup API key untuk data nyata';
     document.getElementById('chartSrc').style.color = 'var(--orange)';
   } else {
-    document.getElementById('chartSrc').textContent = `✓ Twelve Data Live · ${chartData.prices.length} bars`;
+    document.getElementById('chartSrc').textContent = `✓ Twelve Data · ${tfIntvl} · ${chartData.prices.length} bars`;
     document.getElementById('chartSrc').style.color = 'var(--green)';
   }
 
@@ -783,7 +802,7 @@ async function init(){
   // Refresh chart tiap 10 menit (hemat API credit)
   setInterval(()=>{
     if(selected){ chCache={}; renderChart(selected); }
-  },600000);
+  },900000); // 15 min refresh
 }
 
 // ─── START ────────────────────────────────────────────────────────────────────
