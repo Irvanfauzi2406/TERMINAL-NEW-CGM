@@ -235,9 +235,91 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
         <div id="obBids" style="flex:1;overflow:hidden"></div>
       </div>
     </div>
-    <div class="panel">
-      <div class="ph"><span class="pt">ECONOMIC EVENTS</span><span class="ps">This week</span></div>
-      <div style="overflow-y:auto;flex:1" id="econCal"></div>
+    <div class="panel" style="display:flex;flex-direction:column;min-width:0">
+      <div class="ph" style="flex-shrink:0">
+        <span class="pt">MARKET SENTIMENT</span>
+        <span class="ps up" id="sentStatus">● LOADING</span>
+      </div>
+      <div class="sent-grid">
+
+        <!-- Fear & Greed -->
+        <div class="sent-cell">
+          <div class="sent-title">FEAR &amp; GREED INDEX</div>
+          <div style="display:flex;align-items:center;gap:8px;flex:1;min-height:0">
+            <svg width="64" height="64" viewBox="0 0 72 72" style="flex-shrink:0">
+              <circle cx="36" cy="36" r="28" fill="none" stroke="#1a2535" stroke-width="7"/>
+              <circle id="fngArc" cx="36" cy="36" r="28" fill="none" stroke="#f5a623"
+                stroke-width="7" stroke-linecap="round"
+                stroke-dasharray="175.9" stroke-dashoffset="175.9"
+                transform="rotate(-90 36 36)" style="transition:stroke-dashoffset .8s ease"/>
+              <text id="fngVal" x="36" y="33" text-anchor="middle" fill="#c8d4e8"
+                font-size="14" font-weight="600" font-family="IBM Plex Mono">—</text>
+              <text id="fngSub" x="36" y="46" text-anchor="middle" fill="#4a5a78"
+                font-size="7" font-family="IBM Plex Mono">...</text>
+            </svg>
+            <div style="flex:1;min-width:0">
+              <div id="fngLabel" style="font-size:11px;font-weight:600;color:var(--orange);margin-bottom:3px">—</div>
+              <div style="font-size:9px;color:var(--text3);line-height:1.7">
+                <div>PREV: <span id="fngPrev" style="color:var(--text)">—</span></div>
+                <div>7D: <span id="fngAvg" style="color:var(--text)">—</span></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:7px;margin-top:4px">
+                <span style="color:var(--red)">FEAR</span>
+                <span style="color:var(--green)">GREED</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Funding Rate -->
+        <div class="sent-cell">
+          <div class="sent-title">BTC FUNDING RATE <span style="color:var(--text3);font-weight:400">(8H)</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px;overflow:hidden">
+            <div style="display:flex;align-items:baseline;gap:6px;margin-top:2px">
+              <span id="frCurrent" style="font-size:17px;font-weight:600;font-family:var(--mono);color:var(--green)">—</span>
+              <span style="font-size:8px;color:var(--text3)">BINANCE</span>
+            </div>
+            <div id="frBars" style="flex:1;display:flex;flex-direction:column;justify-content:space-around;overflow:hidden"></div>
+            <div style="font-size:8px;color:var(--text3)">
+              Next: <span id="frNext" style="color:var(--cyan);font-family:var(--mono)">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Open Interest -->
+        <div class="sent-cell">
+          <div class="sent-title">OPEN INTEREST <span style="color:var(--text3);font-weight:400">BTC PERP</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:3px;overflow:hidden">
+            <div style="display:flex;align-items:baseline;gap:6px;margin-top:1px">
+              <span id="oiTotal" style="font-size:15px;font-weight:600;font-family:var(--mono);color:var(--blue)">—</span>
+              <span id="oiChg" style="font-size:9px">—</span>
+            </div>
+            <div id="oiBars" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px;overflow:hidden"></div>
+            <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--text3)">
+              <span>BNC <span id="oiBinance" style="color:var(--text)">—</span></span>
+              <span>BYB <span id="oiBybit" style="color:var(--text)">—</span></span>
+              <span>OKX <span id="oiOkx" style="color:var(--text)">—</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Liquidation Heatmap -->
+        <div class="sent-cell">
+          <div class="sent-title">LIQUIDATION HEATMAP <span style="color:var(--text3);font-weight:400">24H</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:2px;overflow:hidden">
+            <div style="display:flex;justify-content:space-between;font-size:8px">
+              <span>LNG: <span id="liqLong" style="color:var(--red);font-weight:600">—</span></span>
+              <span>SHT: <span id="liqShort" style="color:var(--green);font-weight:600">—</span></span>
+            </div>
+            <div id="liqHeatmap" style="flex:1;display:flex;flex-direction:column;gap:1px;overflow:hidden"></div>
+            <div style="display:flex;justify-content:space-between;font-size:7px;color:var(--text3)">
+              <span style="color:var(--red)">■ LONG LIQ</span>
+              <span style="color:var(--green)">■ SHORT LIQ</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
     </div>
   </div>
 </div>
