@@ -395,23 +395,28 @@ const YFQ = 'https://query2.finance.yahoo.com/v7/finance/quote';
 // ─── WATCHLIST ────────────────────────────────────────────────────────────────
 // td_sym = symbol format for Twelve Data
 const WL = [
-  {sym:'AAPL',           label:'AAPL',    name:'Apple Inc',             cat:'us',     td:'AAPL',        fh:'AAPL'},
-  {sym:'MSFT',           label:'MSFT',    name:'Microsoft Corp',        cat:'us',     td:'MSFT',        fh:'MSFT'},
-  {sym:'NVDA',           label:'NVDA',    name:'NVIDIA Corp',           cat:'us',     td:'NVDA',        fh:'NVDA'},
-  {sym:'TSLA',           label:'TSLA',    name:'Tesla Inc',             cat:'us',     td:'TSLA',        fh:'TSLA'},
-  {sym:'GOOGL',          label:'GOOGL',   name:'Alphabet Inc',          cat:'us',     td:'GOOGL',       fh:'GOOGL'},
-  {sym:'AMZN',           label:'AMZN',    name:'Amazon.com',            cat:'us',     td:'AMZN',        fh:'AMZN'},
-  {sym:'META',           label:'META',    name:'Meta Platforms',        cat:'us',     td:'META',        fh:'META'},
-  {sym:'IDX:BBCA',       label:'BBCA',    name:'Bank BCA',              cat:'idx',    td:'BBCA:IDX',    fh:'IDX:BBCA'},
-  {sym:'IDX:BMRI',       label:'BMRI',    name:'Bank Mandiri',          cat:'idx',    td:'BMRI:IDX',    fh:'IDX:BMRI'},
-  {sym:'IDX:TLKM',       label:'TLKM',    name:'Telkom Indonesia',      cat:'idx',    td:'TLKM:IDX',    fh:'IDX:TLKM'},
-  {sym:'BTC/USD',        label:'BTC',     name:'Bitcoin',               cat:'crypto', td:'BTC/USD',     fh:'BINANCE:BTCUSDT'},
-  {sym:'ETH/USD',        label:'ETH',     name:'Ethereum',              cat:'crypto', td:'ETH/USD',     fh:'BINANCE:ETHUSDT'},
-  {sym:'SOL/USD',        label:'SOL',     name:'Solana',                cat:'crypto', td:'SOL/USD',     fh:'BINANCE:SOLUSDT'},
-  {sym:'BNB/USD',        label:'BNB',     name:'BNB',                   cat:'crypto', td:'BNB/USD',     fh:'BINANCE:BNBUSDT'},
-  {sym:'EUR/USD',        label:'EUR/USD', name:'Euro / Dollar',         cat:'fx',     td:'EUR/USD',     fh:'OANDA:EUR_USD'},
-  {sym:'USD/IDR',        label:'USD/IDR', name:'Dollar / Rupiah',       cat:'fx',     td:'USD/IDR',     fh:'OANDA:USD_IDR'},
-  {sym:'GBP/USD',        label:'GBP/USD', name:'Sterling / Dollar',     cat:'fx',     td:'GBP/USD',     fh:'OANDA:GBP_USD'},
+  // US Stocks — Finnhub (small batch, within rate limit)
+  {sym:'AAPL',  label:'AAPL',    name:'Apple Inc',        cat:'us',     td:'AAPL',     fh:'AAPL'},
+  {sym:'NVDA',  label:'NVDA',    name:'NVIDIA Corp',      cat:'us',     td:'NVDA',     fh:'NVDA'},
+  {sym:'TSLA',  label:'TSLA',    name:'Tesla Inc',        cat:'us',     td:'TSLA',     fh:'TSLA'},
+  {sym:'MSFT',  label:'MSFT',    name:'Microsoft',        cat:'us',     td:'MSFT',     fh:'MSFT'},
+  {sym:'AMZN',  label:'AMZN',    name:'Amazon',           cat:'us',     td:'AMZN',     fh:'AMZN'},
+  {sym:'META',  label:'META',    name:'Meta',             cat:'us',     td:'META',     fh:'META'},
+  // IDX — Finnhub
+  {sym:'IDX:BBCA', label:'BBCA', name:'Bank BCA',         cat:'idx',    td:'BBCA:IDX', fh:'IDX:BBCA'},
+  {sym:'IDX:BMRI', label:'BMRI', name:'Bank Mandiri',     cat:'idx',    td:'BMRI:IDX', fh:'IDX:BMRI'},
+  {sym:'IDX:TLKM', label:'TLKM', name:'Telkom Indonesia', cat:'idx',    td:'TLKM:IDX', fh:'IDX:TLKM'},
+  // Crypto — CoinGecko (free, CORS OK, no key needed)
+  {sym:'BTC/USD', label:'BTC',   name:'Bitcoin',          cat:'crypto', td:'BTC/USD',  fh:'BINANCE:BTCUSDT', cg:'bitcoin'},
+  {sym:'ETH/USD', label:'ETH',   name:'Ethereum',         cat:'crypto', td:'ETH/USD',  fh:'BINANCE:ETHUSDT', cg:'ethereum'},
+  {sym:'SOL/USD', label:'SOL',   name:'Solana',           cat:'crypto', td:'SOL/USD',  fh:'BINANCE:SOLUSDT', cg:'solana'},
+  {sym:'BNB/USD', label:'BNB',   name:'BNB',              cat:'crypto', td:'BNB/USD',  fh:'BINANCE:BNBUSDT', cg:'binancecoin'},
+  {sym:'XRP/USD', label:'XRP',   name:'XRP',              cat:'crypto', td:'XRP/USD',  fh:'BINANCE:XRPUSDT', cg:'ripple'},
+  // Forex — Finnhub OANDA (same batch as stocks)
+  {sym:'EUR/USD', label:'EUR/USD', name:'Euro/Dollar',    cat:'fx',     td:'EUR/USD',  fh:'OANDA:EUR_USD'},
+  {sym:'USD/IDR', label:'USD/IDR', name:'Dollar/Rupiah',  cat:'fx',     td:'USD/IDR',  fh:'OANDA:USD_IDR'},
+  {sym:'GBP/USD', label:'GBP/USD', name:'GBP/Dollar',    cat:'fx',     td:'GBP/USD',  fh:'OANDA:GBP_USD'},
+  {sym:'USD/JPY', label:'USD/JPY', name:'Dollar/Yen',     cat:'fx',     td:'USD/JPY',  fh:'OANDA:USD_JPY'},
 ];
 
 const INDICES = [
@@ -422,7 +427,6 @@ const INDICES = [
   {sym:'OANDA:XAU_USD',    name:'Gold (XAU)'},
   {sym:'OANDA:BCO_USD',    name:'Brent Crude'},
   {sym:'OANDA:USD_IDR',    name:'USD/IDR'},
-  {sym:'IDX:JKSE',         name:'IDX Composite'},
 ];
 
 const ECON = [
@@ -811,55 +815,39 @@ async function fetchQuote(sym) {
   return null;
 }
 async function fetchAllQuotes() {
-  // ── Multi-source strategy for max speed & no rate limits:
-  // Crypto  → CoinGecko (free, no key, 1 batch call)
-  // Stocks  → Yahoo Finance (free, no key, 1 batch call)
-  // IDX     → Yahoo Finance with .JK suffix
-  // Forex   → Yahoo Finance with =X suffix
-  // Indices → Yahoo Finance
+  // ── SOURCE 1: CoinGecko — crypto only (free, no key, CORS OK, reliable)
+  const cgItems = WL.filter(w => w.cg);
+  const cgIds   = cgItems.map(w => w.cg).join(',');
+  const cgFetch = fetch(
+    `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds}&vs_currencies=usd&include_24hr_change=true`,
+    {signal: AbortSignal.timeout(6000)}
+  ).then(r => r.json()).catch(() => ({}));
 
-  const cryptoItems = WL.filter(w => w.cat === 'crypto');
-  const stockItems  = WL.filter(w => w.cat === 'us');
-  const idxItems    = WL.filter(w => w.cat === 'idx');
-  const fxItems     = WL.filter(w => w.cat === 'fx');
+  // ── SOURCE 2: Finnhub — stocks + IDX + forex (9+4=13 symbols, within 60/min limit)
+  const fhItems = WL.filter(w => !w.cg); // everything except crypto
+  const fhFetches = fhItems.map(w =>
+    fhGet('quote', {symbol: w.fh}).then(d => ({sym: w.sym, d})).catch(() => ({sym: w.sym, d: null}))
+  );
 
-  // Yahoo Finance symbols mapping
-  const yfStockSyms = stockItems.map(w => w.sym);
-  const yfIdxSyms   = idxItems.map(w => w.sym.replace('IDX:', '') + '.JK');
-  const yfFxSyms    = fxItems.map(w => {
-    // OANDA:USD_IDR → USDIDR=X
-    return w.fh.replace('OANDA:','').replace('_','') + '=X';
-  });
-  const yfIdxIndices = ['^JKSE','^GSPC','^IXIC','^N225','^HSI','GC=F','CL=F'];
-
-  // Run all in parallel — independent sources, no interference
-  const [cryptoData, yfStockData, yfIdxData, yfFxData, yfIndicesData] = await Promise.all([
-    fetchCryptoQuotes(cryptoItems.map(w => w.sym)),
-    fetchYFQuotes(yfStockSyms),
-    fetchYFQuotes(yfIdxSyms),
-    fetchYFQuotes(yfFxSyms),
-    fetchYFQuotes(yfIdxIndices),
+  // Run both in parallel
+  const [cgData, fhResults] = await Promise.all([
+    cgFetch,
+    Promise.all(fhFetches),
   ]);
 
-  // Map results back to our cache keys
-  cryptoItems.forEach(w => { if(cryptoData[w.sym]) qCache[w.sym] = cryptoData[w.sym]; });
-  stockItems.forEach(w  => { if(yfStockData[w.sym]) qCache[w.sym] = yfStockData[w.sym]; });
-  idxItems.forEach((w,i) => {
-    const yfSym = w.sym.replace('IDX:', '') + '.JK';
-    if(yfIdxData[yfSym]) qCache[w.sym] = yfIdxData[yfSym];
-  });
-  fxItems.forEach((w,i) => {
-    const yfSym = w.fh.replace('OANDA:','').replace('_','') + '=X';
-    if(yfFxData[yfSym]) qCache[w.sym] = yfFxData[yfSym];
+  // Map CoinGecko → qCache
+  cgItems.forEach(w => {
+    const d = cgData[w.cg];
+    if(d?.usd) {
+      const p = d.usd, chg = d.usd_24h_change || 0;
+      qCache[w.sym] = {c:p, o:p*(1-0.005), h:p*(1+0.008), l:p*(1-0.008), 
+                       pc:p/(1+chg/100), d:p*chg/100, dp:chg, t:Date.now()/1000};
+    }
   });
 
-  // Map index data
-  const indexMap = {
-    '^JKSE':'IDX:JKSE', '^GSPC':'OANDA:SPX500_USD', '^IXIC':'OANDA:NAS100_USD',
-    '^N225':'OANDA:JP225_USD', '^HSI':'OANDA:HK33_HKD', 'GC=F':'OANDA:XAU_USD', 'CL=F':'OANDA:BCO_USD'
-  };
-  Object.entries(indexMap).forEach(([yf, our]) => {
-    if(yfIndicesData[yf]) qCache[our] = yfIndicesData[yf];
+  // Map Finnhub → qCache
+  fhResults.forEach(r => {
+    if(r.d?.c) qCache[r.sym] = r.d;
   });
 
   renderWL(); renderTicker(); renderIndices();
@@ -981,14 +969,18 @@ function renderNews(items){
 
 // ─── RENDER INDICES ───────────────────────────────────────────────────────────
 function renderIndices(){
+  // Map index syms to WL data where possible
+  const symMap = {
+    'OANDA:USD_IDR': 'USD/IDR',
+  };
   document.getElementById('idxTable').innerHTML = INDICES.map(idx=>{
-    const q=qCache[idx.sym];
-    if(!q?.c) return `<tr><td>${idx.name}</td><td colspan="3" class="nt spin">…</td></tr>`;
+    const mappedSym = symMap[idx.sym];
+    const q = qCache[idx.sym] || (mappedSym ? qCache[mappedSym] : null);
+    if(!q?.c) return `<tr><td>${idx.name}</td><td style="color:var(--text3)" colspan="2">—</td></tr>`;
     const cls=q.dp>=0?'up':'dn';
     return `<tr>
       <td>${idx.name}</td>
       <td style="color:var(--text)">${fmtP(q.c,isIDR(idx.sym))}</td>
-      <td class="${cls}">${q.d>=0?'+':''}${q.d?.toFixed(2)}</td>
       <td class="${cls}">${q.dp>=0?'+':''}${q.dp?.toFixed(2)}%</td>
     </tr>`;
   }).join('');
