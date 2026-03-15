@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CryptoGem Terminal by Irvan — Real-Time Crypto Intelligence</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1/dist/chartjs-adapter-luxon.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -42,7 +45,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .tick-sym{color:var(--orange);font-weight:600}
 .up{color:var(--green)}.dn{color:var(--red)}.nt{color:var(--text3)}
 
-.main{display:grid;grid-template-columns:210px 1fr 210px;grid-template-rows:1fr 260px;gap:1px;background:var(--border);flex:1;min-height:0}
+.main{display:grid;grid-template-columns:210px 1fr 210px;grid-template-rows:1fr 230px 130px;gap:1px;background:var(--border);flex:1;min-height:0}
 .panel{background:var(--bg);display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .ph{background:var(--bg2);border-bottom:1px solid var(--border2);padding:5px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .pt{color:var(--orange);font-size:10px;font-weight:600;letter-spacing:1.5px}
@@ -86,7 +89,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .t-crypto{background:rgba(168,85,247,.1);color:var(--purple);border:1px solid rgba(168,85,247,.2)}
 .nhead{color:var(--text);font-size:10px;line-height:1.45;font-family:var(--sans)}
 
-.bot{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:150px 1fr 160px 380px;gap:1px;background:var(--border)}
+.bot{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:140px 280px 155px 380px;gap:1px;background:var(--border)}
 .mkt-table{width:100%;border-collapse:collapse;font-size:10px}
 .mkt-table th{padding:3px 8px;text-align:right;color:var(--text3);font-size:9px;font-weight:500;letter-spacing:.5px;border-bottom:1px solid var(--border)}
 .mkt-table th:first-child{text-align:left}
@@ -150,6 +153,35 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .liq-row{display:flex;gap:2px;flex:1}
 .liq-box{flex:1;border-radius:1px;min-width:0;transition:opacity .3s}
 .oi-bar-wrap{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px;overflow:hidden}
+
+/* ── WHALE TRACKER ─────────────────────────────────────── */
+.whale-row{grid-column:1/-1;grid-row:3;background:var(--bg);border-top:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden}
+.whale-feed{display:flex;gap:0;overflow-x:auto;overflow-y:hidden;flex:1;align-items:stretch;scrollbar-width:none}
+.whale-feed::-webkit-scrollbar{display:none}
+.whale-item{flex-shrink:0;width:200px;border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;padding:6px 10px;gap:2px;transition:background .3s;position:relative;overflow:hidden}
+.whale-item.buy{border-top:2px solid var(--green)}
+.whale-item.sell{border-top:2px solid var(--red)}
+.whale-item.mega{animation:whalePulse .8s ease-out}
+@keyframes whalePulse{0%{background:rgba(245,166,35,.18)}100%{background:transparent}}
+.whale-flash{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .3s}
+.whale-flash.buy{background:rgba(0,212,160,.12)}
+.whale-flash.sell{background:rgba(255,74,110,.12)}
+.whale-sym{font-size:11px;font-weight:600;color:var(--orange)}
+.whale-size{font-size:13px;font-weight:600;font-family:var(--mono)}
+.whale-size.buy{color:var(--green)}
+.whale-size.sell{color:var(--red)}
+.whale-meta{font-size:8px;color:var(--text3);display:flex;gap:6px;align-items:center}
+.whale-badge{padding:1px 5px;border-radius:1px;font-size:7px;font-weight:700;letter-spacing:.5px}
+.badge-mega{background:rgba(245,166,35,.15);color:var(--orange);border:1px solid rgba(245,166,35,.3)}
+.badge-whale{background:rgba(74,158,255,.12);color:var(--blue);border:1px solid rgba(74,158,255,.25)}
+.badge-big{background:rgba(168,85,247,.1);color:var(--purple);border:1px solid rgba(168,85,247,.2)}
+.whale-stats{display:flex;gap:16px;font-size:9px;padding:3px 10px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.wstat{color:var(--text3)}
+.wstat span{font-family:var(--mono);font-weight:500}
+.wstat .up{color:var(--green)}
+.wstat .dn{color:var(--red)}
+.ws-dot{width:6px;height:6px;border-radius:50%;background:var(--red);display:inline-block;margin-right:4px;transition:background .3s}
+.ws-dot.connected{background:var(--green);animation:blink 2s infinite}
 </style>
 </head>
 <body>
@@ -330,6 +362,27 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
       </div>
     </div>
   </div>
+  <!-- WHALE TRACKER ROW -->
+  <div class="whale-row">
+    <div class="whale-stats">
+      <span style="color:var(--orange);font-weight:600;font-size:9px;letter-spacing:1px;margin-right:4px">
+        🐋 WHALE TRACKER
+      </span>
+      <span class="ws-dot" id="wsDot"></span>
+      <span id="wsStatus" style="color:var(--text3);font-size:9px">Connecting...</span>
+      <span style="margin-left:8px" class="wstat">24H BUY VOL: <span id="wTotalBuy" class="up">$0</span></span>
+      <span class="wstat">24H SELL VOL: <span id="wTotalSell" class="dn">$0</span></span>
+      <span class="wstat">TRADES: <span id="wTradeCount" style="color:var(--text)">0</span></span>
+      <span class="wstat">LARGEST: <span id="wLargest" style="color:var(--orange)">—</span></span>
+      <span style="margin-left:auto;font-size:8px;color:var(--text3)">THRESHOLD: &gt;$100K · Binance WebSocket Live</span>
+    </div>
+    <div class="whale-feed" id="whaleFeed">
+      <div style="display:flex;align-items:center;padding:0 20px;color:var(--text3);font-size:10px;gap:8px">
+        <span class="spin">Waiting for whale trades...</span>
+      </div>
+    </div>
+  </div>
+
 </div>
 <div class="cmdbar">
   <span class="cmd-prompt">▶</span>
@@ -504,6 +557,7 @@ async function fetchTDChart(tdSym) {
   if(!d || d.status==='error' || !d.values || !d.values.length) return null;
 
   const isIntraday = tfIntvl.includes('min') || tfIntvl === '1h';
+  const isIntraday = tfIntvl.includes('min') || tfIntvl === '1h';
   const dates = d.values.map(v => {
     const dt = new Date(v.datetime);
     if(isIntraday && tfRange === '1day') {
@@ -515,8 +569,16 @@ async function fetchTDChart(tdSym) {
     return dt.toLocaleDateString('id-ID',{month:'short',day:'numeric'});
   });
   const prices = d.values.map(v => parseFloat(v.close));
+  // OHLC for candlestick
+  const ohlc = d.values.map(v => ({
+    x: new Date(v.datetime).getTime(),
+    o: parseFloat(v.open),
+    h: parseFloat(v.high),
+    l: parseFloat(v.low),
+    c: parseFloat(v.close),
+  }));
 
-  const result = {dates, prices, meta: d.meta};
+  const result = {dates, prices, ohlc, meta: d.meta};
   chCache[cacheKey] = result;
   return result;
 }
@@ -543,9 +605,17 @@ function generateSimChart(currentPrice, isUp, idr) {
     p += p*(drift + (Math.random()-0.5)*0.025);
     p = Math.max(currentPrice*0.6, Math.min(currentPrice*1.5, p));
   }
-  // Make sure last point is current price
   if(prices.length > 0) prices[prices.length-1] = currentPrice;
-  return {dates, prices, simulated:true};
+  // Generate OHLC from close prices
+  const ohlc = prices.map((c, i) => {
+    const prev = prices[i-1] || c;
+    const range = Math.abs(c - prev) * 1.5 + currentPrice * 0.003;
+    const o = prev;
+    const h = Math.max(o, c) + Math.random() * range * 0.5;
+    const l = Math.min(o, c) - Math.random() * range * 0.5;
+    return { x: Date.now() - (prices.length - i) * (tfIntvl==='1h'?3600000:900000), o, h, l, c };
+  });
+  return {dates, prices, ohlc, simulated:true};
 }
 
 // ─── RENDER CHART ─────────────────────────────────────────────────────────────
@@ -593,51 +663,106 @@ async function renderChart(sym) {
     document.getElementById('chartSrc').style.color = 'var(--green)';
   }
 
-  myChart = new Chart(canvas.getContext('2d'), {
-    type:'line',
-    data:{
-      labels: chartData.dates,
-      datasets:[{
-        data: chartData.prices,
-        borderColor: isUp ? '#00d4a0' : '#ff4a6e',
-        borderWidth: 1.5,
-        fill: true,
-        backgroundColor: isUp ? 'rgba(0,212,160,0.07)' : 'rgba(255,74,110,0.07)',
-        pointRadius: 0,
-        tension: 0.2,
-        spanGaps: true,
-      }]
-    },
-    options:{
-      responsive:false, animation:{duration:350},
-      plugins:{
-        legend:{display:false},
-        tooltip:{
-          backgroundColor:'#0f1218', borderColor:'#263040', borderWidth:1,
-          titleColor:'#f5a623', bodyColor:'#c8d4e8',
-          callbacks:{label:ctx=>' '+fmtP(ctx.parsed.y, idr)}
-        }
-      },
-      scales:{
-        x:{
-          display:true,
-          grid:{color:'#1a2030'},
-          ticks:{color:'#4a5a78',font:{family:'IBM Plex Mono',size:8},maxTicksLimit:10,maxRotation:0},
-          border:{display:false}
-        },
-        y:{
-          position:'right',
-          grid:{color:'#1a2030'},
-          ticks:{
-            color:'#4a5a78', font:{family:'IBM Plex Mono',size:9}, maxTicksLimit:6,
-            callback: v => idr ? v.toLocaleString('id-ID') : v>=1000?v.toFixed(0):v>=1?v.toFixed(2):v.toFixed(4)
+  const useCandle = chartData.ohlc && chartData.ohlc.length > 0 && typeof CandlestickController !== 'undefined';
+
+  if(useCandle) {
+    // ── Candlestick chart ──
+    myChart = new Chart(canvas.getContext('2d'), {
+      type: 'candlestick',
+      data: {
+        datasets:[{
+          label: entry?.label || sym,
+          data: chartData.ohlc,
+          color: {
+            up:   '#00d4a0',
+            down: '#ff4a6e',
+            unchanged: '#8a9ab8',
           },
-          border:{display:false}
-        }
+          borderColor: {
+            up:   '#00d4a0',
+            down: '#ff4a6e',
+            unchanged: '#8a9ab8',
+          },
+        }]
       },
-      interaction:{mode:'index',intersect:false}
-    }
-  });
+      options:{
+        responsive:false, animation:{duration:300},
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            backgroundColor:'#0f1218', borderColor:'#263040', borderWidth:1,
+            titleColor:'#f5a623', bodyColor:'#c8d4e8',
+            callbacks:{
+              label: ctx => {
+                const d = ctx.raw;
+                if(!d) return '';
+                return [
+                  ` O: ${fmtP(d.o,idr)}`,
+                  ` H: ${fmtP(d.h,idr)}`,
+                  ` L: ${fmtP(d.l,idr)}`,
+                  ` C: ${fmtP(d.c,idr)}`,
+                ];
+              }
+            }
+          }
+        },
+        scales:{
+          x:{
+            type:'timeseries',
+            display:true,
+            grid:{color:'#1a2030'},
+            ticks:{color:'#4a5a78',font:{family:'IBM Plex Mono',size:8},maxTicksLimit:10,maxRotation:0},
+            border:{display:false},
+            time:{ tooltipFormat:'HH:mm dd MMM' }
+          },
+          y:{
+            position:'right',
+            grid:{color:'#1a2030'},
+            ticks:{
+              color:'#4a5a78', font:{family:'IBM Plex Mono',size:9}, maxTicksLimit:6,
+              callback: v => idr ? v.toLocaleString('id-ID') : v>=1000?v.toFixed(0):v>=1?v.toFixed(2):v.toFixed(4)
+            },
+            border:{display:false}
+          }
+        },
+        interaction:{mode:'index',intersect:false}
+      }
+    });
+  } else {
+    // ── Fallback line chart (if financial plugin not loaded yet) ──
+    myChart = new Chart(canvas.getContext('2d'), {
+      type:'line',
+      data:{
+        labels: chartData.dates,
+        datasets:[{
+          data: chartData.prices,
+          borderColor: isUp ? '#00d4a0' : '#ff4a6e',
+          borderWidth: 1.5,
+          fill: true,
+          backgroundColor: isUp ? 'rgba(0,212,160,0.07)' : 'rgba(255,74,110,0.07)',
+          pointRadius: 0,
+          tension: 0.2,
+          spanGaps: true,
+        }]
+      },
+      options:{
+        responsive:false, animation:{duration:350},
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            backgroundColor:'#0f1218', borderColor:'#263040', borderWidth:1,
+            titleColor:'#f5a623', bodyColor:'#c8d4e8',
+            callbacks:{label:ctx=>' O:'+fmtP(ctx.parsed.y,idr)}
+          }
+        },
+        scales:{
+          x:{display:true,grid:{color:'#1a2030'},ticks:{color:'#4a5a78',font:{family:'IBM Plex Mono',size:8},maxTicksLimit:10,maxRotation:0},border:{display:false}},
+          y:{position:'right',grid:{color:'#1a2030'},ticks:{color:'#4a5a78',font:{family:'IBM Plex Mono',size:9},maxTicksLimit:6,callback:v=>idr?v.toLocaleString('id-ID'):v>=1000?v.toFixed(0):v>=1?v.toFixed(2):v.toFixed(4)},border:{display:false}}
+        },
+        interaction:{mode:'index',intersect:false}
+      }
+    });
+  }
 }
 
 // ─── FETCH QUOTES (Finnhub) ───────────────────────────────────────────────────
@@ -902,6 +1027,7 @@ async function init(){
   document.getElementById('liveLabel').style.color='var(--green)';
   setTimeout(initMap, 200);
   loadSentiment();
+  setTimeout(connectWhaleWS, 500);
 
   const first=WL.find(w=>qCache[w.sym]?.c);
   if(first) await selectSym(first.sym);
@@ -1597,6 +1723,223 @@ async function loadSentiment() {
   document.getElementById('sentStatus').textContent = '● LIVE';
   document.getElementById('sentStatus').style.color = 'var(--green)';
 }
+
+
+
+// ─── WHALE TRACKER ENGINE ─────────────────────────────────────────────────────
+const WHALE_THRESHOLD_BIG  = 100_000;   // $100K  → Big Fish 🐟
+const WHALE_THRESHOLD_WHALE = 500_000;  // $500K  → Whale 🐋
+const WHALE_THRESHOLD_MEGA = 2_000_000; // $2M    → MEGA WHALE 🚨
+const MAX_WHALE_ITEMS = 40;
+
+// Which symbols to track on Binance (futures for bigger volume)
+const WHALE_SYMBOLS = ['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT','DOGEUSDT'];
+
+let whaleWS = null;
+let whaleFeedItems = [];
+let whaleTotalBuy  = 0;
+let whaleTotalSell = 0;
+let whaleTradeCount = 0;
+let whaleLargest    = 0;
+let wsReconnectTimer = null;
+
+function connectWhaleWS() {
+  if(whaleWS) { try { whaleWS.close(); } catch(e){} }
+
+  // Binance Futures aggregate trade streams — no auth required, CORS-free via WebSocket
+  const streams = WHALE_SYMBOLS.map(s => `${s.toLowerCase()}@aggTrade`).join('/');
+  const url = `wss://fstream.binance.com/stream?streams=${streams}`;
+
+  try {
+    whaleWS = new WebSocket(url);
+  } catch(e) {
+    // Fallback to spot stream
+    const spotStreams = WHALE_SYMBOLS.map(s => `${s.toLowerCase()}@aggTrade`).join('/');
+    whaleWS = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${spotStreams}`);
+  }
+
+  whaleWS.onopen = () => {
+    document.getElementById('wsDot').classList.add('connected');
+    document.getElementById('wsStatus').textContent = 'Live · Binance Futures';
+    document.getElementById('wsStatus').style.color = 'var(--green)';
+    if(wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  };
+
+  whaleWS.onmessage = (event) => {
+    try {
+      const msg  = JSON.parse(event.data);
+      const data = msg.data || msg;
+      if(!data || !data.p || !data.q) return;
+
+      const price  = parseFloat(data.p);
+      const qty    = parseFloat(data.q);
+      const usdVal = price * qty;
+
+      // Only process trades above threshold
+      if(usdVal < WHALE_THRESHOLD_BIG) return;
+
+      // m = true means buyer is maker → SELL pressure; false = BUY pressure
+      const isBuy  = !data.m;
+      const sym    = (data.s || '').replace('USDT','');
+
+      processWhaleTrade({ sym, price, qty, usdVal, isBuy, ts: data.T || Date.now() });
+    } catch(e) {}
+  };
+
+  whaleWS.onerror = () => {
+    document.getElementById('wsDot').classList.remove('connected');
+    document.getElementById('wsStatus').textContent = 'Error — retrying...';
+    document.getElementById('wsStatus').style.color = 'var(--red)';
+  };
+
+  whaleWS.onclose = () => {
+    document.getElementById('wsDot').classList.remove('connected');
+    document.getElementById('wsStatus').textContent = 'Reconnecting...';
+    document.getElementById('wsStatus').style.color = 'var(--orange)';
+    // Reconnect after 3s
+    wsReconnectTimer = setTimeout(connectWhaleWS, 3000);
+  };
+}
+
+function processWhaleTrade({ sym, price, qty, usdVal, isBuy, ts }) {
+  // Categorise
+  let tier, badge;
+  if(usdVal >= WHALE_THRESHOLD_MEGA) {
+    tier  = 'mega';
+    badge = '<span class="whale-badge badge-mega">🚨 MEGA</span>';
+  } else if(usdVal >= WHALE_THRESHOLD_WHALE) {
+    tier  = 'whale';
+    badge = '<span class="whale-badge badge-whale">🐋 WHALE</span>';
+  } else {
+    tier  = 'big';
+    badge = '<span class="whale-badge badge-big">🐟 BIG</span>';
+  }
+
+  const side  = isBuy ? 'BUY' : 'SELL';
+  const cls   = isBuy ? 'buy' : 'sell';
+  const ago   = 'just now';
+
+  const item = {
+    id: Date.now() + Math.random(),
+    sym, price, qty, usdVal, isBuy, tier, badge, cls, ts,
+    html: buildWhaleCard({ sym, price, qty, usdVal, isBuy, tier, badge, cls, ago })
+  };
+
+  // Update stats
+  if(isBuy) whaleTotalBuy  += usdVal;
+  else       whaleTotalSell += usdVal;
+  whaleTradeCount++;
+  if(usdVal > whaleLargest) whaleLargest = usdVal;
+
+  // Add to front
+  whaleFeedItems.unshift(item);
+  if(whaleFeedItems.length > MAX_WHALE_ITEMS) whaleFeedItems.pop();
+
+  renderWhaleFeed();
+  updateWhaleStats();
+
+  // Flash sound-like visual for mega trades
+  if(tier === 'mega') {
+    flashMegaAlert(sym, usdVal, isBuy);
+  }
+}
+
+function buildWhaleCard({ sym, price, qty, usdVal, isBuy, tier, badge, cls, ago }) {
+  const priceStr = price >= 1000
+    ? price.toLocaleString(undefined,{maximumFractionDigits:1})
+    : price.toFixed(4);
+  const qtyStr = qty >= 1 ? qty.toFixed(2) : qty.toFixed(4);
+  const usdStr  = formatUSD(usdVal);
+  const side    = isBuy ? '▲ BUY' : '▼ SELL';
+  const sideCol = isBuy ? 'var(--green)' : 'var(--red)';
+  const timeStr = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+  return `
+    <div class="whale-item ${cls}${tier==='mega'?' mega':''}">
+      <div class="whale-flash ${cls}" id="wf_${Date.now()}"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="whale-sym">${sym}/USDT</span>
+        ${badge}
+      </div>
+      <div class="whale-size ${cls}">${usdStr}</div>
+      <div class="whale-meta">
+        <span style="color:${sideCol};font-weight:600">${side}</span>
+        <span>${qtyStr} @ $${priceStr}</span>
+      </div>
+      <div style="font-size:7px;color:var(--text3);margin-top:1px">${timeStr}</div>
+    </div>`;
+}
+
+function formatUSD(v) {
+  if(v >= 1e9)  return '$' + (v/1e9).toFixed(2) + 'B';
+  if(v >= 1e6)  return '$' + (v/1e6).toFixed(2) + 'M';
+  if(v >= 1e3)  return '$' + (v/1e3).toFixed(0) + 'K';
+  return '$' + v.toFixed(0);
+}
+
+function renderWhaleFeed() {
+  const feed = document.getElementById('whaleFeed');
+  if(!feed) return;
+  if(!whaleFeedItems.length) {
+    feed.innerHTML = '<div style="display:flex;align-items:center;padding:0 20px;color:var(--text3);font-size:10px"><span class="spin">Waiting for whale trades...</span></div>';
+    return;
+  }
+  feed.innerHTML = whaleFeedItems.map(i => i.html).join('');
+
+  // Trigger flash animation on newest item
+  const newest = feed.querySelector('.whale-flash');
+  if(newest) {
+    newest.style.opacity = '1';
+    setTimeout(() => { if(newest) newest.style.opacity = '0'; }, 400);
+  }
+}
+
+function updateWhaleStats() {
+  const buyEl   = document.getElementById('wTotalBuy');
+  const sellEl  = document.getElementById('wTotalSell');
+  const cntEl   = document.getElementById('wTradeCount');
+  const lgEl    = document.getElementById('wLargest');
+  if(buyEl)  buyEl.textContent  = formatUSD(whaleTotalBuy);
+  if(sellEl) sellEl.textContent = formatUSD(whaleTotalSell);
+  if(cntEl)  cntEl.textContent  = whaleTradeCount;
+  if(lgEl && whaleLargest > 0) lgEl.textContent = formatUSD(whaleLargest);
+}
+
+// Mega whale visual flash on top of screen
+function flashMegaAlert(sym, usdVal, isBuy) {
+  const div = document.createElement('div');
+  div.style.cssText = `
+    position:fixed;top:42px;left:50%;transform:translateX(-50%);
+    background:${isBuy ? 'rgba(0,212,160,.95)' : 'rgba(255,74,110,.95)'};
+    color:#000;padding:8px 24px;font-family:var(--mono);font-size:12px;
+    font-weight:700;letter-spacing:1px;z-index:9999;border-radius:2px;
+    animation:megaFade 3s ease-out forwards;pointer-events:none;
+    box-shadow:0 4px 20px rgba(0,0,0,.5);
+  `;
+  div.textContent = `🚨 MEGA WHALE ${isBuy ? 'BUY' : 'SELL'} — ${sym} — ${formatUSD(usdVal)}`;
+  document.body.appendChild(div);
+  setTimeout(() => div.remove(), 3000);
+}
+
+// Inject @keyframes for mega fade
+const megaStyle = document.createElement('style');
+megaStyle.textContent = `@keyframes megaFade{0%{opacity:1;transform:translateX(-50%) translateY(0)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) translateY(-10px)}}`;
+document.head.appendChild(megaStyle);
+
+// Update timestamps in feed periodically
+setInterval(() => {
+  const feed = document.getElementById('whaleFeed');
+  if(!feed || !whaleFeedItems.length) return;
+  // Rebuild timestamps
+  whaleFeedItems.forEach((item, i) => {
+    const age = Math.floor((Date.now() - item.ts) / 1000);
+    let ago;
+    if(age < 60)   ago = age + 's ago';
+    else if(age < 3600) ago = Math.floor(age/60) + 'm ago';
+    else ago = Math.floor(age/3600) + 'h ago';
+    // Update time element - lightweight, just the text
+  });
+}, 10000);
 
 
 </script>
