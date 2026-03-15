@@ -37,7 +37,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .tick-sym{color:var(--orange);font-weight:600}
 .up{color:var(--green)}.dn{color:var(--red)}.nt{color:var(--text3)}
 
-.main{display:grid;grid-template-columns:210px 1fr 210px;grid-template-rows:1fr 195px;gap:1px;background:var(--border);flex:1;min-height:0}
+.main{display:grid;grid-template-columns:210px 1fr 210px;grid-template-rows:1fr 240px;gap:1px;background:var(--border);flex:1;min-height:0}
 .panel{background:var(--bg);display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .ph{background:var(--bg2);border-bottom:1px solid var(--border2);padding:5px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .pt{color:var(--orange);font-size:10px;font-weight:600;letter-spacing:1.5px}
@@ -81,7 +81,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .t-crypto{background:rgba(168,85,247,.1);color:var(--purple);border:1px solid rgba(168,85,247,.2)}
 .nhead{color:var(--text);font-size:10px;line-height:1.45;font-family:var(--sans)}
 
-.bot{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--border)}
+.bot{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:180px 1fr 180px 190px;gap:1px;background:var(--border)}
 .mkt-table{width:100%;border-collapse:collapse;font-size:10px}
 .mkt-table th{padding:3px 8px;text-align:right;color:var(--text3);font-size:9px;font-weight:500;letter-spacing:.5px;border-bottom:1px solid var(--border)}
 .mkt-table th:first-child{text-align:left}
@@ -122,6 +122,16 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-track{background:var(--bg2)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+.map-panel{position:relative;overflow:hidden;background:var(--bg)}
+.map-panel svg{width:100%;height:100%}
+.trade-arc{stroke-width:1.2;fill:none;opacity:0}
+.trade-dot{opacity:0}
+.map-country{fill:#1a2030;stroke:#0f1218;stroke-width:0.3;transition:fill .3s}
+.map-country.hot{fill:#2a1f10}
+.map-country.warm{fill:#1a2520}
+.map-legend{position:absolute;bottom:6px;left:8px;font-size:8px;color:var(--text3);font-family:var(--mono);line-height:1.7}
+#mapTitle{position:absolute;top:5px;left:8px;font-size:9px;color:var(--orange);font-family:var(--mono);font-weight:600;letter-spacing:1px}
 </style>
 </head>
 <body>
@@ -189,10 +199,15 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
       <div class="ph"><span class="pt">GLOBAL INDICES</span><span class="ps" id="idxTime">Live</span></div>
       <div style="overflow-y:auto;flex:1">
         <table class="mkt-table">
-          <thead><tr><th style="text-align:left">INDEX</th><th>LAST</th><th>CHG</th><th>%</th></tr></thead>
-          <tbody id="idxTable"><tr><td colspan="4" style="text-align:center;color:var(--text3)" class="spin">Loading...</td></tr></tbody>
+          <thead><tr><th style="text-align:left">INDEX</th><th>LAST</th><th>%</th></tr></thead>
+          <tbody id="idxTable"><tr><td colspan="3" style="text-align:center;color:var(--text3)" class="spin">Loading...</td></tr></tbody>
         </table>
       </div>
+    </div>
+    <div class="panel map-panel" id="mapPanel">
+      <div id="mapTitle">GLOBAL TRADE FLOW</div>
+      <div id="mapLegend" class="map-legend"></div>
+      <canvas id="mapCanvas" style="width:100%;height:100%;display:block"></canvas>
     </div>
     <div class="panel">
       <div class="ph"><span class="pt">ORDER BOOK</span><span class="ps" id="obSym">—</span></div>
@@ -624,6 +639,7 @@ async function selectSym(sym){
   renderWL();
   renderChart(sym);
   fetchNews(entry?.fh||sym).then(renderNews);
+  startMapAnimation(sym);
 }
 
 // ─── RENDER NEWS ──────────────────────────────────────────────────────────────
@@ -782,6 +798,7 @@ async function init(){
 
   document.getElementById('liveLabel').textContent='LIVE';
   document.getElementById('liveLabel').style.color='var(--green)';
+  setTimeout(initMap, 200);
 
   const first=WL.find(w=>qCache[w.sym]?.c);
   if(first) await selectSym(first.sym);
@@ -812,6 +829,341 @@ init().catch(e => {
   document.getElementById('liveLabel').textContent = 'ERROR';
   document.getElementById('liveLabel').style.color = 'var(--red)';
 });
+
+// ─── WORLD MAP ENGINE ─────────────────────────────────────────────────────────
+// Trading centers with coordinates (canvas %, approximate Mercator projection)
+const TRADE_HUBS = {
+  'NEW YORK':    {x:0.235, y:0.38, vol:1.0,  color:'#f5a623', regions:['US']},
+  'LONDON':      {x:0.465, y:0.27, vol:0.95, color:'#4a9eff', regions:['GB','EU']},
+  'TOKYO':       {x:0.81,  y:0.34, vol:0.85, color:'#00d4a0', regions:['JP']},
+  'HONG KONG':   {x:0.775, y:0.42, vol:0.80, color:'#00c8e8', regions:['HK','CN']},
+  'SINGAPORE':   {x:0.765, y:0.52, vol:0.75, color:'#a855f7', regions:['SG']},
+  'JAKARTA':     {x:0.775, y:0.565, vol:0.55, color:'#ff4a6e', regions:['ID']},
+  'SYDNEY':      {x:0.855, y:0.68, vol:0.50, color:'#00d4a0', regions:['AU']},
+  'FRANKFURT':   {x:0.49,  y:0.27, vol:0.65, color:'#4a9eff', regions:['DE']},
+  'SHANGHAI':    {x:0.795, y:0.37, vol:0.70, color:'#ffd700', regions:['CN']},
+  'DUBAI':       {x:0.595, y:0.42, vol:0.55, color:'#f5a623', regions:['AE']},
+};
+
+// Asset → which hubs are most active
+const ASSET_HUBS = {
+  'AAPL':    ['NEW YORK','LONDON','TOKYO'],
+  'MSFT':    ['NEW YORK','LONDON','SINGAPORE'],
+  'NVDA':    ['NEW YORK','TOKYO','HONG KONG'],
+  'TSLA':    ['NEW YORK','LONDON','FRANKFURT'],
+  'GOOGL':   ['NEW YORK','LONDON','SINGAPORE'],
+  'AMZN':    ['NEW YORK','LONDON','TOKYO'],
+  'META':    ['NEW YORK','LONDON','FRANKFURT'],
+  'BTC/USD': ['NEW YORK','LONDON','HONG KONG','SINGAPORE','FRANKFURT'],
+  'ETH/USD': ['NEW YORK','LONDON','SINGAPORE','HONG KONG'],
+  'SOL/USD': ['NEW YORK','SINGAPORE','HONG KONG'],
+  'BNB/USD': ['HONG KONG','SINGAPORE','DUBAI'],
+  'EUR/USD': ['LONDON','FRANKFURT','NEW YORK','TOKYO'],
+  'USD/IDR': ['JAKARTA','SINGAPORE','HONG KONG','LONDON'],
+  'GBP/USD': ['LONDON','NEW YORK','FRANKFURT'],
+  'IDX:BBCA':['JAKARTA','SINGAPORE','HONG KONG'],
+  'IDX:BMRI':['JAKARTA','SINGAPORE'],
+  'IDX:BBRI':['JAKARTA','SINGAPORE'],
+  'IDX:TLKM':['JAKARTA','SINGAPORE','HONG KONG'],
+  'IDX:ASII':['JAKARTA','SINGAPORE'],
+  'IDX:GOTO':['JAKARTA','SINGAPORE','HONG KONG'],
+};
+
+const DEFAULT_HUBS = ['NEW YORK','LONDON','TOKYO','SINGAPORE'];
+
+let mapAnimFrame = null;
+let mapArcs = [];
+let mapPulses = [];
+let lastMapSym = null;
+
+// Simplified world map path data (SVG-like coordinates 0-1000 x 0-500)
+// We'll draw a simple but recognizable world using canvas
+function drawWorldMap(ctx, W, H) {
+  ctx.clearRect(0, 0, W, H);
+
+  // Ocean background
+  ctx.fillStyle = '#0a0f18';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines (latitude/longitude)
+  ctx.strokeStyle = '#111827';
+  ctx.lineWidth = 0.5;
+  for(let i=0; i<=10; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i*(W/10), 0);
+    ctx.lineTo(i*(W/10), H);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, i*(H/10));
+    ctx.lineTo(W, i*(H/10));
+    ctx.stroke();
+  }
+
+  // Draw simplified continents
+  ctx.fillStyle = '#1a2535';
+  ctx.strokeStyle = '#0f1827';
+  ctx.lineWidth = 0.8;
+
+  const continents = getContinentPaths(W, H);
+  continents.forEach(pts => {
+    if(!pts.length) return;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  });
+}
+
+function getContinentPaths(W, H) {
+  const s = (x, y) => [x*W, y*H];
+  return [
+    // North America
+    [s(.13,.12),s(.24,.08),s(.28,.1),s(.30,.13),s(.28,.17),s(.31,.22),s(.28,.28),
+     s(.26,.35),s(.22,.38),s(.20,.42),s(.18,.38),s(.14,.32),s(.10,.22),s(.10,.15)],
+    // South America
+    [s(.22,.42),s(.28,.40),s(.30,.45),s(.30,.55),s(.28,.65),s(.24,.72),s(.20,.68),
+     s(.18,.58),s(.18,.48),s(.20,.44)],
+    // Europe
+    [s(.44,.14),s(.52,.12),s(.56,.14),s(.54,.20),s(.56,.22),s(.52,.26),s(.48,.26),
+     s(.44,.22),s(.42,.18)],
+    // Africa
+    [s(.46,.28),s(.54,.26),s(.58,.30),s(.60,.38),s(.58,.50),s(.54,.62),s(.50,.66),
+     s(.46,.60),s(.44,.50),s(.44,.38),s(.45,.30)],
+    // Asia (simplified, split into parts)
+    [s(.56,.12),s(.70,.10),s(.78,.12),s(.86,.14),s(.90,.18),s(.88,.22),s(.84,.24),
+     s(.82,.30),s(.78,.32),s(.74,.30),s(.70,.26),s(.66,.22),s(.62,.20),s(.58,.18),s(.56,.14)],
+    // Southeast Asia
+    [s(.74,.38),s(.80,.36),s(.84,.38),s(.82,.44),s(.78,.46),s(.76,.48),s(.74,.46),s(.74,.40)],
+    // Indonesia (simplified)
+    [s(.76,.52),s(.82,.50),s(.86,.52),s(.84,.56),s(.80,.57),s(.76,.55)],
+    [s(.87,.52),s(.91,.51),s(.93,.53),s(.91,.55),s(.87,.54)],
+    // Australia
+    [s(.80,.60),s(.90,.58),s(.96,.62),s(.96,.70),s(.90,.74),s(.82,.72),s(.78,.68),s(.78,.62)],
+    // Japan
+    [s(.83,.28),s(.85,.26),s(.87,.28),s(.86,.32),s(.84,.32)],
+    // UK
+    [s(.455,.18),s(.47,.17),s(.47,.22),s(.455,.23),s(.45,.20)],
+    // Greenland
+    [s(.22,.06),s(.30,.04),s(.34,.06),s(.32,.12),s(.26,.12),s(.22,.09)],
+  ];
+}
+
+function initMap() {
+  const canvas = document.getElementById('mapCanvas');
+  if(!canvas) return;
+  const panel = document.getElementById('mapPanel');
+  const W = panel.clientWidth;
+  const H = panel.clientHeight;
+  canvas.width  = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  drawWorldMap(ctx, W, H);
+  drawHubs(ctx, W, H, DEFAULT_HUBS, []);
+}
+
+function drawHubs(ctx, W, H, activeHubNames, arcPairs) {
+  const hubKeys = Object.keys(TRADE_HUBS);
+
+  // Draw arcs first (behind hubs)
+  arcPairs.forEach(([a, b], i) => {
+    const h1 = TRADE_HUBS[a], h2 = TRADE_HUBS[b];
+    if(!h1||!h2) return;
+    const x1=h1.x*W, y1=h1.y*H, x2=h2.x*W, y2=h2.y*H;
+    const mx=(x1+x2)/2, my=(y1+y2)/2 - Math.abs(x2-x1)*0.22;
+
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.quadraticCurveTo(mx, my, x2, y2);
+    ctx.strokeStyle = h1.color + '55';
+    ctx.lineWidth = 1.0;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // Draw all hubs
+  hubKeys.forEach(name => {
+    const h = TRADE_HUBS[name];
+    const isActive = activeHubNames.includes(name);
+    const x = h.x*W, y = h.y*H;
+
+    if(isActive) {
+      // Glow ring
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, 18);
+      grad.addColorStop(0, h.color + '55');
+      grad.addColorStop(1, h.color + '00');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, 18, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // Hub dot
+    const r = isActive ? 4 + h.vol*3 : 2.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.fillStyle = isActive ? h.color : '#2a3a52';
+    ctx.fill();
+
+    if(isActive) {
+      // Outer ring pulse (static)
+      ctx.beginPath();
+      ctx.arc(x, y, r+4, 0, Math.PI*2);
+      ctx.strokeStyle = h.color + '80';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Label
+    ctx.fillStyle = isActive ? h.color : '#2a3a52';
+    ctx.font = `${isActive ? 600 : 400} ${isActive ? 8 : 7}px IBM Plex Mono`;
+    ctx.textAlign = 'center';
+    ctx.fillText(name, x, y - r - 4);
+  });
+}
+
+// Animated arc drawing
+let animArcs = [];
+let animPulses = [];
+let animRAF = null;
+
+function startMapAnimation(sym) {
+  const entry = WL.find(w=>w.sym===sym);
+  const label = entry?.label || sym;
+  const activeHubs = ASSET_HUBS[sym] || ASSET_HUBS[label] || DEFAULT_HUBS;
+
+  // Build arc pairs (hub → hub connections)
+  const pairs = [];
+  for(let i=0; i<activeHubs.length; i++) {
+    for(let j=i+1; j<activeHubs.length; j++) {
+      pairs.push([activeHubs[i], activeHubs[j]]);
+    }
+  }
+
+  const canvas = document.getElementById('mapCanvas');
+  if(!canvas) return;
+  const panel = document.getElementById('mapPanel');
+  const W = panel.clientWidth;
+  const H = panel.clientHeight;
+  canvas.width = W; canvas.height = H;
+
+  // Update title
+  document.getElementById('mapTitle').textContent = `TRADE FLOW — ${label}`;
+
+  // Build animated particles
+  animArcs = pairs.map(([a,b]) => {
+    const h1 = TRADE_HUBS[a], h2 = TRADE_HUBS[b];
+    return {
+      x1:h1.x*W, y1:h1.y*H, x2:h2.x*W, y2:h2.y*H,
+      color: h1.color,
+      progress: Math.random(), // stagger starts
+      speed: 0.003 + Math.random()*0.004,
+      // Control point for bezier
+      cx: (h1.x*W + h2.x*W)/2,
+      cy: (h1.y*H + h2.y*H)/2 - Math.abs(h2.x*W - h1.x*W)*0.22,
+    };
+  });
+
+  // Pulses on active hubs
+  animPulses = activeHubs.map(name => {
+    const h = TRADE_HUBS[name];
+    return {x: h.x*W, y: h.y*H, color: h.color, r: 0, maxR: 20, speed: 0.4};
+  });
+
+  // Update legend
+  const q = qCache[sym];
+  const dp = q?.dp;
+  document.getElementById('mapLegend').innerHTML =
+    activeHubs.map(h => `<span style="color:${TRADE_HUBS[h].color}">● ${h}</span>`).join('  ');
+
+  if(animRAF) cancelAnimationFrame(animRAF);
+  animateMap(canvas, W, H, activeHubs, pairs);
+}
+
+function animateMap(canvas, W, H, activeHubs, pairs) {
+  const ctx = canvas.getContext('2d');
+
+  function frame() {
+    // Redraw base map
+    drawWorldMap(ctx, W, H);
+
+    // Draw static arcs (trail)
+    pairs.forEach(([a,b]) => {
+      const h1=TRADE_HUBS[a], h2=TRADE_HUBS[b];
+      const x1=h1.x*W, y1=h1.y*H, x2=h2.x*W, y2=h2.y*H;
+      const cx=(x1+x2)/2, cy=(y1+y2)/2 - Math.abs(x2-x1)*0.22;
+      ctx.beginPath();
+      ctx.moveTo(x1,y1);
+      ctx.quadraticCurveTo(cx,cy,x2,y2);
+      ctx.strokeStyle = h1.color + '22';
+      ctx.lineWidth = 0.8;
+      ctx.setLineDash([3,5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    // Draw animated particles along arcs
+    animArcs.forEach(arc => {
+      arc.progress += arc.speed;
+      if(arc.progress > 1) arc.progress = 0;
+      const t = arc.progress;
+      // Quadratic bezier point
+      const px = (1-t)*(1-t)*arc.x1 + 2*(1-t)*t*arc.cx + t*t*arc.x2;
+      const py = (1-t)*(1-t)*arc.y1 + 2*(1-t)*t*arc.cy + t*t*arc.y2;
+      // Tail
+      const t2 = Math.max(0, t-0.08);
+      const px2 = (1-t2)*(1-t2)*arc.x1 + 2*(1-t2)*t2*arc.cx + t2*t2*arc.x2;
+      const py2 = (1-t2)*(1-t2)*arc.y1 + 2*(1-t2)*t2*arc.cy + t2*t2*arc.y2;
+
+      // Glow tail
+      const grad = ctx.createLinearGradient(px2,py2,px,py);
+      grad.addColorStop(0, arc.color + '00');
+      grad.addColorStop(1, arc.color + 'cc');
+      ctx.beginPath();
+      ctx.moveTo(px2,py2);
+      ctx.lineTo(px,py);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Bright head dot
+      ctx.beginPath();
+      ctx.arc(px, py, 2.5, 0, Math.PI*2);
+      ctx.fillStyle = arc.color;
+      ctx.fill();
+
+      // Mini glow around head
+      const g2 = ctx.createRadialGradient(px,py,0,px,py,6);
+      g2.addColorStop(0, arc.color+'66');
+      g2.addColorStop(1, arc.color+'00');
+      ctx.fillStyle = g2;
+      ctx.beginPath();
+      ctx.arc(px,py,6,0,Math.PI*2);
+      ctx.fill();
+    });
+
+    // Pulse rings on active hubs
+    animPulses.forEach(p => {
+      p.r += p.speed;
+      if(p.r > p.maxR) p.r = 0;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.strokeStyle = p.color + Math.round((1 - p.r/p.maxR)*160).toString(16).padStart(2,'0');
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    });
+
+    // Draw hub dots on top
+    drawHubs(ctx, W, H, activeHubs, []);
+
+    animRAF = requestAnimationFrame(frame);
+  }
+
+  animRAF = requestAnimationFrame(frame);
+}
+
 </script>
 </body>
 </html>
