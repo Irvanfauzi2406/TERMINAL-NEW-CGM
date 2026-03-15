@@ -110,19 +110,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .cmd-hint{color:var(--text3);font-size:9px}
 
 /* SETUP OVERLAY */
-.overlay{position:fixed;inset:0;background:rgba(10,12,15,.97);display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:0}
-.setup-box{background:var(--bg2);border:1px solid var(--orange);border-radius:4px;padding:32px 36px;max-width:520px;width:90%}
-.setup-box h2{color:var(--orange);font-size:16px;letter-spacing:2px;margin-bottom:6px}
-.setup-box p{color:var(--text2);font-size:11px;line-height:1.7;margin-bottom:16px}
-.setup-steps{margin-bottom:20px}
-.setup-step{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;font-size:11px;color:var(--text)}
-.step-num{color:var(--orange);font-weight:600;min-width:18px}
-.setup-box input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:12px;padding:8px 12px;border-radius:2px;outline:none;margin-bottom:12px}
-.setup-box input:focus{border-color:var(--orange)}
-.setup-btn{width:100%;padding:10px;background:var(--orange);border:none;color:#000;font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;border-radius:2px;transition:opacity .15s}
-.setup-btn:hover{opacity:.85}
-.setup-skip{text-align:center;margin-top:10px;font-size:10px;color:var(--text3);cursor:pointer;text-decoration:underline}
-.setup-skip:hover{color:var(--text2)}
+/* setup overlay removed */
 
 .toast{position:fixed;bottom:50px;right:12px;background:var(--bg4);border:1px solid var(--orange);padding:6px 14px;font-size:10px;color:var(--orange);border-radius:2px;z-index:9999;opacity:0;transition:opacity .25s;pointer-events:none}
 .toast.show{opacity:1}
@@ -391,28 +379,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 </div>
 </div>
 
-<!-- SETUP OVERLAY -->
-<div class="overlay" id="setupOverlay">
-  <div class="setup-box">
-    <h2>⚡ SETUP API KEY</h2>
-    <p>Untuk menampilkan chart data historis yang nyata, terminal ini menggunakan <strong style="color:var(--orange)">Twelve Data</strong> — gratis 800 request/hari, tidak perlu kartu kredit.</p>
-    <div class="setup-steps">
-      <div class="setup-step"><span class="step-num">1.</span><span>Buka <strong style="color:var(--cyan)">twelvedata.com</strong> di tab baru → klik <strong>Get your free API key</strong></span></div>
-      <div class="setup-step"><span class="step-num">2.</span><span>Daftar dengan email (gratis, tanpa kartu kredit)</span></div>
-      <div class="setup-step"><span class="step-num">3.</span><span>Copy API key dari dashboard → paste di bawah</span></div>
-    </div>
-    <input type="text" id="apiKeyInput" placeholder="Paste API key kamu di sini..." autocomplete="off" spellcheck="false">
-    <button class="setup-btn" onclick="saveKey()">▶ MULAI TERMINAL</button>
-    <div class="setup-skip" onclick="skipSetup()">Lewati dulu — pakai simulasi chart (tanpa data nyata)</div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
 // ─── KEYS ─────────────────────────────────────────────────────────────────────
 const FH_KEY = 'd6r5v1pr01qgdhqd9jo0d6r5v1pr01qgdhqd9jog';
-let TD_KEY = localStorage.getItem('td_key') || '5cb91a751fc04995ab1e0f161c2aa02b';
+const TD_KEY = '5cb91a751fc04995ab1e0f161c2aa02b'; // Hardcoded — no setup needed
 
 const FH  = 'https://finnhub.io/api/v1';
 const TD  = 'https://api.twelvedata.com';
@@ -473,28 +445,7 @@ let tfIntvl  = '15min';
 let myChart  = null;
 let tab      = 'all';
 
-// ─── SETUP OVERLAY ────────────────────────────────────────────────────────────
-function saveKey() {
-  const k = document.getElementById('apiKeyInput').value.trim();
-  if(!k) { toast('Paste API key dulu!'); return; }
-  TD_KEY = k;
-  localStorage.setItem('td_key', k);
-  document.getElementById('setupOverlay').style.display = 'none';
-  toast('API key tersimpan! Memuat data...');
-  init();
-}
-function skipSetup() {
-  document.getElementById('setupOverlay').style.display = 'none';
-  toast('Mode simulasi — chart tidak menggunakan data nyata');
-  init();
-}
-function checkSetup() {
-  if(TD_KEY) {
-    document.getElementById('setupOverlay').style.display = 'none';
-    return true;
-  }
-  return false;
-}
+// Setup removed — key hardcoded
 
 // ─── FETCH HELPERS ────────────────────────────────────────────────────────────
 const fhGet = (path, p={}) =>
@@ -1059,7 +1010,6 @@ async function init(){
 }
 
 // ─── START ────────────────────────────────────────────────────────────────────
-document.getElementById('setupOverlay').style.display = 'none';
 init().catch(e => {
   console.error(e);
   document.getElementById('liveLabel').textContent = 'ERROR';
