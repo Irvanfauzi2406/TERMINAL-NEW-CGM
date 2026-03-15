@@ -554,7 +554,6 @@ async function fetchYFQuotes(symbols) {
 }
 
 // Twelve Data batch quote — 1 API call for ALL symbols
-async function fetchTDBatch(tdSymbols) {// Twelve Data batch quote — 1 API call for ALL symbols
 async function fetchTDBatch(tdSymbols) {
   if(!tdSymbols.length) return {};
   // TD /quote endpoint supports comma-separated symbols
