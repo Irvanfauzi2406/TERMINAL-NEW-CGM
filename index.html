@@ -481,7 +481,6 @@ let tab      = 'all';
 
 // ─── FETCH HELPERS ────────────────────────────────────────────────────────────
 const fhGet = (path, p={}) => {
-  // Route through Vercel proxy to avoid CORS
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 5000);
   return fetch(`https://finnhub.io/api/v1/${path}?${new URLSearchParams({...p, token:FH_KEY})}`, {signal: ctrl.signal})
@@ -491,11 +490,9 @@ const fhGet = (path, p={}) => {
 };
 
 const tdGet = (path, p={}) => {
-  // Route through /api/chart proxy (same-origin, no CORS)
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);
-  const params = new URLSearchParams(p);
-  return fetch(`/api/chart?${params}`, {signal: ctrl.signal})
+  return fetch(`https://api.twelvedata.com/${path}?${new URLSearchParams({...p, apikey:TD_KEY})}`, {signal: ctrl.signal})
     .then(r => r.json())
     .catch(() => null)
     .finally(() => clearTimeout(timer));
@@ -626,7 +623,6 @@ async function fetchTDChart(tdSym) {
 
   if(!d || d.status==='error' || !d.values || !d.values.length) return null;
 
-  const isIntraday = tfIntvl.includes('min') || tfIntvl === '1h';
   const isIntraday = tfIntvl.includes('min') || tfIntvl === '1h';
   const dates = d.values.map(v => {
     const dt = new Date(v.datetime);
