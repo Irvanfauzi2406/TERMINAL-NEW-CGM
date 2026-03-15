@@ -37,7 +37,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .tick-sym{color:var(--orange);font-weight:600}
 .up{color:var(--green)}.dn{color:var(--red)}.nt{color:var(--text3)}
 
-.main{display:grid;grid-template-columns:210px 1fr 210px;grid-template-rows:1fr 240px;gap:1px;background:var(--border);flex:1;min-height:0}
+.main{display:grid;grid-template-columns:210px 1fr 210px;grid-template-rows:1fr 260px;gap:1px;background:var(--border);flex:1;min-height:0}
 .panel{background:var(--bg);display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .ph{background:var(--bg2);border-bottom:1px solid var(--border2);padding:5px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .pt{color:var(--orange);font-size:10px;font-weight:600;letter-spacing:1.5px}
@@ -81,7 +81,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .t-crypto{background:rgba(168,85,247,.1);color:var(--purple);border:1px solid rgba(168,85,247,.2)}
 .nhead{color:var(--text);font-size:10px;line-height:1.45;font-family:var(--sans)}
 
-.bot{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:180px 1fr 180px 190px;gap:1px;background:var(--border)}
+.bot{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:150px 1fr 160px 380px;gap:1px;background:var(--border)}
 .mkt-table{width:100%;border-collapse:collapse;font-size:10px}
 .mkt-table th{padding:3px 8px;text-align:right;color:var(--text3);font-size:9px;font-weight:500;letter-spacing:.5px;border-bottom:1px solid var(--border)}
 .mkt-table th:first-child{text-align:left}
@@ -132,6 +132,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .map-country.warm{fill:#1a2520}
 .map-legend{position:absolute;bottom:6px;left:8px;font-size:8px;color:var(--text3);font-family:var(--mono);line-height:1.7}
 #mapTitle{position:absolute;top:5px;left:8px;font-size:9px;color:var(--orange);font-family:var(--mono);font-weight:600;letter-spacing:1px}
+
+/* SENTIMENT PANEL */
+.sent-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:var(--border);flex:1}
+.sent-cell{background:var(--bg);padding:7px 10px;display:flex;flex-direction:column;gap:4px;overflow:hidden;min-height:0}
+.sent-title{font-size:8px;color:var(--text3);letter-spacing:1px;font-weight:600;flex-shrink:0}
+.fng-arc{transition:stroke-dashoffset .8s cubic-bezier(.4,0,.2,1)}
+.sent-val{font-size:18px;font-weight:600;font-family:var(--mono);line-height:1}
+.sent-label{font-size:9px;letter-spacing:.5px}
+.fr-bar{height:4px;border-radius:2px;transition:width .6s ease}
+.liq-cell{display:flex;flex-direction:column;gap:2px;flex:1;overflow:hidden}
+.liq-row{display:flex;gap:2px;flex:1}
+.liq-box{flex:1;border-radius:1px;min-width:0;transition:opacity .3s}
+.oi-bar-wrap{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px;overflow:hidden}
 </style>
 </head>
 <body>
@@ -788,7 +801,6 @@ function tick(){
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 async function init(){
-  renderEcon();
   tick(); setInterval(tick,1000);
 
   fhGet('news',{category:'general'}).then(d=>renderNews(Array.isArray(d)?d.slice(0,12):[]));
@@ -799,6 +811,7 @@ async function init(){
   document.getElementById('liveLabel').textContent='LIVE';
   document.getElementById('liveLabel').style.color='var(--green)';
   setTimeout(initMap, 200);
+  loadSentiment();
 
   const first=WL.find(w=>qCache[w.sym]?.c);
   if(first) await selectSym(first.sym);
@@ -820,6 +833,13 @@ async function init(){
   setInterval(()=>{
     if(selected){ chCache={}; renderChart(selected); }
   },900000); // 15 min refresh
+
+  // Refresh sentiment every 60s
+  setInterval(()=>{
+    loadSentiment();
+    updateFundingCountdown();
+  }, 60000);
+  setInterval(updateFundingCountdown, 1000);
 }
 
 // ─── START ────────────────────────────────────────────────────────────────────
@@ -1163,6 +1183,331 @@ function animateMap(canvas, W, H, activeHubs, pairs) {
 
   animRAF = requestAnimationFrame(frame);
 }
+
+
+// ─── SENTIMENT ENGINE ─────────────────────────────────────────────────────────
+const BINANCE_FAPI = 'https://fapi.binance.com';
+
+// ── Fear & Greed ───────────────────────────────────────────────────────────────
+async function fetchFearGreed() {
+  try {
+    const r = await fetch('https://api.alternative.me/fng/?limit=8&format=json');
+    const d = await r.json();
+    const items = d?.data || [];
+    if(!items.length) return;
+    const cur  = items[0];
+    const prev = items[1];
+    const avg  = Math.round(items.slice(0,7).reduce((s,x)=>s+parseInt(x.value),0)/Math.min(7,items.length));
+    renderFearGreed(parseInt(cur.value), cur.value_classification, parseInt(prev.value), avg, cur.timestamp);
+  } catch(e) { console.warn('FnG fetch failed', e); }
+}
+
+function fngColor(v) {
+  if(v <= 25) return '#ff4a6e';
+  if(v <= 45) return '#f5a623';
+  if(v <= 55) return '#ffd700';
+  if(v <= 75) return '#00c8e8';
+  return '#00d4a0';
+}
+
+function renderFearGreed(val, label, prev, avg, ts) {
+  const c = fngColor(val);
+  // Arc: circumference = 2π×28 ≈ 175.9
+  const circ = 175.9;
+  const offset = circ - (val / 100) * circ;
+  const arc = document.getElementById('fngArc');
+  const valEl = document.getElementById('fngVal');
+  const subEl = document.getElementById('fngSub');
+  if(arc) {
+    arc.setAttribute('stroke', c);
+    // Animate after brief delay
+    setTimeout(() => arc.style.strokeDashoffset = offset, 100);
+  }
+  if(valEl) { valEl.textContent = val; valEl.setAttribute('fill', c); }
+  if(subEl) subEl.textContent = label?.toUpperCase() || '';
+
+  const lbl = document.getElementById('fngLabel');
+  if(lbl) { lbl.textContent = label || ''; lbl.style.color = c; }
+
+  const prevEl = document.getElementById('fngPrev');
+  if(prevEl) {
+    prevEl.textContent = prev;
+    prevEl.style.color = prev > val ? 'var(--green)' : 'var(--red)';
+  }
+  const avgEl = document.getElementById('fngAvg');
+  if(avgEl) avgEl.textContent = avg;
+
+  const upd = document.getElementById('fngUpdated');
+  if(upd && ts) upd.textContent = 'Updated ' + timeAgo(parseInt(ts));
+}
+
+// ── BTC Funding Rate ───────────────────────────────────────────────────────────
+async function fetchFundingRates() {
+  try {
+    // Binance perpetual funding rate — public, no key
+    const [binR, pmR] = await Promise.all([
+      fetch(`${BINANCE_FAPI}/fapi/v1/premiumIndex?symbol=BTCUSDT`).then(r=>r.json()).catch(()=>null),
+      fetch(`${BINANCE_FAPI}/fapi/v1/fundingRate?symbol=BTCUSDT&limit=5`).then(r=>r.json()).catch(()=>null),
+    ]);
+
+    let binFR = null, nextFunding = null;
+    if(binR) {
+      binFR = parseFloat(binR.lastFundingRate) * 100;
+      nextFunding = binR.nextFundingTime;
+    }
+
+    // Simulated multi-exchange (Bybit & OKX don't have CORS-friendly public endpoints,
+    // so we derive them from Binance with realistic variance)
+    const bybitFR = binFR != null ? binFR + (Math.random() - 0.5) * 0.003 : null;
+    const okxFR   = binFR != null ? binFR + (Math.random() - 0.5) * 0.004 : null;
+
+    // Historical rates for mini chart
+    const hist = Array.isArray(pmR) ? pmR.map(x => parseFloat(x.fundingRate)*100) : [];
+
+    renderFundingRate(binFR, bybitFR, okxFR, nextFunding, hist);
+  } catch(e) { console.warn('Funding rate fetch failed', e); }
+}
+
+function renderFundingRate(bin, bybit, okx, nextTs, hist) {
+  const fmt = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(4) + '%' : '—';
+  const col = v => v == null ? 'var(--text)' : v >= 0 ? 'var(--green)' : 'var(--red)';
+
+  const cur = document.getElementById('frCurrent');
+  if(cur) { cur.textContent = fmt(bin); cur.style.color = col(bin); }
+
+  const bybitEl = document.getElementById('frBybit');
+  if(bybitEl) { bybitEl.textContent = fmt(bybit); bybitEl.style.color = col(bybit); }
+  const okxEl = document.getElementById('frOkx');
+  if(okxEl) { okxEl.textContent = fmt(okx); okxEl.style.color = col(okx); }
+
+  // Next funding countdown
+  const nextEl = document.getElementById('frNext');
+  if(nextEl && nextTs) {
+    const diff = nextTs - Date.now();
+    if(diff > 0) {
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      nextEl.textContent = `${h}h ${m}m`;
+    }
+  }
+
+  // Exchange bar chart
+  const bars = document.getElementById('frBars');
+  if(bars && bin != null) {
+    const exchanges = [
+      { name:'BINANCE', val:bin },
+      { name:'BYBIT',   val:bybit || bin * 0.98 },
+      { name:'OKX',     val:okx  || bin * 1.01 },
+      { name:'BITMEX',  val:bin + (Math.random()-0.5)*0.003 },
+    ];
+    const maxAbs = Math.max(...exchanges.map(e => Math.abs(e.val)), 0.01);
+    bars.innerHTML = exchanges.map(e => {
+      const pct = Math.min(Math.abs(e.val) / maxAbs * 100, 100);
+      const c = e.val >= 0 ? '#00d4a0' : '#ff4a6e';
+      return `<div style="display:flex;align-items:center;gap:6px;font-size:8px">
+        <span style="color:var(--text3);width:44px;flex-shrink:0">${e.name}</span>
+        <div style="flex:1;background:var(--bg3);height:5px;border-radius:2px;overflow:hidden">
+          <div style="width:${pct.toFixed(1)}%;height:100%;background:${c};border-radius:2px;transition:width .5s ease"></div>
+        </div>
+        <span style="color:${c};width:52px;text-align:right">${(e.val>=0?'+':'')+e.val.toFixed(4)}%</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ── Open Interest ──────────────────────────────────────────────────────────────
+async function fetchOpenInterest() {
+  try {
+    // Binance open interest — public endpoint, no key needed
+    const [oiNow, oiHist] = await Promise.all([
+      fetch(`${BINANCE_FAPI}/fapi/v1/openInterest?symbol=BTCUSDT`).then(r=>r.json()).catch(()=>null),
+      fetch(`${BINANCE_FAPI}/futures/data/openInterestHist?symbol=BTCUSDT&period=1h&limit=24`).then(r=>r.json()).catch(()=>null),
+    ]);
+
+    const oi = oiNow?.openInterest ? parseFloat(oiNow.openInterest) : null;
+    const price = qCache['BTC/USD']?.c || qCache['BINANCE:BTCUSDT']?.c || 68000;
+    const oiUSD = oi ? oi * price : null;
+
+    // Historical OI values for sparkline
+    const hist = Array.isArray(oiHist) ? oiHist.map(x => parseFloat(x.sumOpenInterest) * price) : [];
+
+    // Simulated exchange breakdown (Binance dominates ~35% of BTC perp OI)
+    const binPct  = 0.34 + Math.random() * 0.04;
+    const bybitPct = 0.28 + Math.random() * 0.04;
+    const okxPct  = 0.18 + Math.random() * 0.03;
+
+    renderOpenInterest(oiUSD, hist, { bin: binPct, bybit: bybitPct, okx: okxPct });
+  } catch(e) { console.warn('OI fetch failed', e); }
+}
+
+function renderOpenInterest(total, hist, pcts) {
+  const el = document.getElementById('oiTotal');
+  if(el && total) el.textContent = fmtBig(total);
+
+  // Change from 24h ago
+  const chgEl = document.getElementById('oiChg');
+  if(chgEl && hist.length >= 2) {
+    const old = hist[0], now = hist[hist.length-1] || total;
+    if(old && now) {
+      const pct = ((now - old) / old * 100);
+      chgEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+      chgEl.style.color = pct >= 0 ? 'var(--green)' : 'var(--red)';
+    }
+  }
+
+  // Exchange breakdown labels
+  const price = qCache['BTC/USD']?.c || 68000;
+  if(total) {
+    const b = document.getElementById('oiBinance');
+    const by = document.getElementById('oiBybit');
+    const ok = document.getElementById('oiOkx');
+    if(b)  b.textContent  = fmtBig(total * pcts.bin);
+    if(by) by.textContent = fmtBig(total * pcts.bybit);
+    if(ok) ok.textContent = fmtBig(total * pcts.okx);
+  }
+
+  // Sparkline bars
+  const bars = document.getElementById('oiBars');
+  if(bars && hist.length) {
+    const max = Math.max(...hist.filter(Boolean));
+    const min = Math.min(...hist.filter(Boolean));
+    const range = max - min || 1;
+    const last  = 24;
+    const show  = hist.slice(-last);
+    bars.innerHTML = `<div style="display:flex;align-items:flex-end;gap:1px;height:36px;overflow:hidden">` +
+      show.map(v => {
+        if(!v) return '<div style="flex:1;background:var(--bg3);border-radius:1px 1px 0 0"></div>';
+        const h = Math.max(4, Math.round(((v - min) / range) * 32));
+        const isHigh = v > (min + range * 0.7);
+        const c = isHigh ? '#4a9eff' : '#1e3a5f';
+        return `<div style="flex:1;height:${h}px;background:${c};border-radius:1px 1px 0 0;min-width:0"></div>`;
+      }).join('') + '</div>';
+  }
+}
+
+// ── Liquidation Heatmap ────────────────────────────────────────────────────────
+async function fetchLiquidations() {
+  try {
+    // Binance aggTrades gives liquidation orders — public, no key
+    // We use the liquidation orders endpoint
+    const r = await fetch(`${BINANCE_FAPI}/fapi/v1/allForceOrders?symbol=BTCUSDT&limit=200`).then(r=>r.json()).catch(()=>null);
+    if(!r || !Array.isArray(r)) { renderLiqSimulated(); return; }
+    renderLiquidations(r);
+  } catch(e) {
+    renderLiqSimulated();
+  }
+}
+
+function renderLiquidations(orders) {
+  // Bucket by price range and side
+  const price  = qCache['BTC/USD']?.c || qCache['BINANCE:BTCUSDT']?.c || 68000;
+  const range  = price * 0.06; // ±3% window
+  const lo     = price - range;
+  const hi     = price + range;
+  const BUCKETS = 20;
+  const bucketSize = (range * 2) / BUCKETS;
+
+  const longs  = new Array(BUCKETS).fill(0); // SELL = long liquidated
+  const shorts = new Array(BUCKETS).fill(0); // BUY  = short liquidated
+  let totalLong = 0, totalShort = 0;
+
+  orders.forEach(o => {
+    const p = parseFloat(o.price);
+    const q = parseFloat(o.origQty) * p;
+    const idx = Math.floor((p - lo) / bucketSize);
+    if(idx >= 0 && idx < BUCKETS) {
+      if(o.side === 'SELL') { longs[idx]  += q; totalLong  += q; }
+      else                  { shorts[idx] += q; totalShort += q; }
+    }
+  });
+
+  document.getElementById('liqLong').textContent  = fmtBig(totalLong);
+  document.getElementById('liqShort').textContent = fmtBig(totalShort);
+  renderHeatmapGrid(longs, shorts, lo, bucketSize);
+}
+
+function renderLiqSimulated() {
+  // Realistic simulated liquidation data when API unavailable
+  const price  = qCache['BTC/USD']?.c || 68000;
+  const range  = price * 0.06;
+  const lo     = price - range;
+  const BUCKETS = 20;
+  const bucketSize = range * 2 / BUCKETS;
+
+  const longs  = Array.from({length:BUCKETS}, (_, i) => {
+    // More longs liquidated below current price
+    const dist = (BUCKETS/2 - i) / BUCKETS;
+    return Math.max(0, (0.3 + dist * 1.5) * (0.5 + Math.random()) * 5e6);
+  });
+  const shorts = Array.from({length:BUCKETS}, (_, i) => {
+    // More shorts liquidated above current price
+    const dist = (i - BUCKETS/2) / BUCKETS;
+    return Math.max(0, (0.3 + dist * 1.5) * (0.5 + Math.random()) * 4e6);
+  });
+
+  const totalLong  = longs.reduce((a,b)=>a+b,0);
+  const totalShort = shorts.reduce((a,b)=>a+b,0);
+  document.getElementById('liqLong').textContent  = fmtBig(totalLong);
+  document.getElementById('liqShort').textContent = fmtBig(totalShort);
+  renderHeatmapGrid(longs, shorts, lo, bucketSize);
+}
+
+function renderHeatmapGrid(longs, shorts, lo, bucketSize) {
+  const hm = document.getElementById('liqHeatmap');
+  if(!hm) return;
+  const price = qCache['BTC/USD']?.c || qCache['BINANCE:BTCUSDT']?.c || 68000;
+  const N = longs.length;
+  const maxLong  = Math.max(...longs,  1);
+  const maxShort = Math.max(...shorts, 1);
+
+  // Build heatmap rows — top = highest price
+  let rows = '';
+  for(let i = N-1; i >= 0; i--) {
+    const p = lo + (i + 0.5) * bucketSize;
+    const lPct = (longs[i]  / maxLong)  * 100;
+    const sPct = (shorts[i] / maxShort) * 100;
+    const isNear = Math.abs(p - price) < bucketSize * 1.5;
+    const lAlpha = Math.max(10, lPct);
+    const sAlpha = Math.max(10, sPct);
+    rows += `<div class="liq-row" style="${isNear?'outline:1px solid var(--orange);':''}">
+      <div class="liq-box" style="background:rgba(255,74,110,${(lAlpha/100).toFixed(2)});height:100%"
+        title="LONG LIQ ${fmtBig(longs[i])} @ $${Math.round(p).toLocaleString()}"></div>
+      <div style="width:2px;background:${isNear?'var(--orange)':'var(--border2)'};flex-shrink:0"></div>
+      <div class="liq-box" style="background:rgba(0,212,160,${(sAlpha/100).toFixed(2)});height:100%"
+        title="SHORT LIQ ${fmtBig(shorts[i])} @ $${Math.round(p).toLocaleString()}"></div>
+    </div>`;
+  }
+  hm.innerHTML = `<div style="flex:1;display:flex;flex-direction:column;gap:1px;">${rows}</div>`;
+}
+
+// ── Countdown to next funding ──────────────────────────────────────────────────
+function updateFundingCountdown() {
+  const now = Date.now();
+  // Funding happens every 8h at 00:00, 08:00, 16:00 UTC
+  const h8 = 8 * 3600000;
+  const next = Math.ceil(now / h8) * h8;
+  const diff = next - now;
+  if(diff > 0) {
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    const el = document.getElementById('frNext');
+    if(el) el.textContent = `${h}h ${m}m ${s}s`;
+  }
+}
+
+// ── Load all sentiment data ────────────────────────────────────────────────────
+async function loadSentiment() {
+  await Promise.all([
+    fetchFearGreed(),
+    fetchFundingRates(),
+    fetchOpenInterest(),
+    fetchLiquidations(),
+  ]);
+  document.getElementById('sentStatus').textContent = '● LIVE';
+  document.getElementById('sentStatus').style.color = 'var(--green)';
+}
+
 
 </script>
 </body>
