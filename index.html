@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CryptoGem Terminal by Irvan — Real-Time Crypto Intelligence</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -388,6 +388,9 @@ const TD_KEY = '5cb91a751fc04995ab1e0f161c2aa02b'; // Hardcoded — no setup nee
 
 const FH  = 'https://finnhub.io/api/v1';
 const TD  = 'https://api.twelvedata.com';
+const CG  = 'https://api.coingecko.com/api/v3';
+const YF  = 'https://query1.finance.yahoo.com/v8/finance/chart';
+const YFQ = 'https://query2.finance.yahoo.com/v7/finance/quote';
 
 // ─── WATCHLIST ────────────────────────────────────────────────────────────────
 // td_sym = symbol format for Twelve Data
@@ -401,10 +404,7 @@ const WL = [
   {sym:'META',           label:'META',    name:'Meta Platforms',        cat:'us',     td:'META',        fh:'META'},
   {sym:'IDX:BBCA',       label:'BBCA',    name:'Bank BCA',              cat:'idx',    td:'BBCA:IDX',    fh:'IDX:BBCA'},
   {sym:'IDX:BMRI',       label:'BMRI',    name:'Bank Mandiri',          cat:'idx',    td:'BMRI:IDX',    fh:'IDX:BMRI'},
-  {sym:'IDX:BBRI',       label:'BBRI',    name:'Bank BRI',              cat:'idx',    td:'BBRI:IDX',    fh:'IDX:BBRI'},
   {sym:'IDX:TLKM',       label:'TLKM',    name:'Telkom Indonesia',      cat:'idx',    td:'TLKM:IDX',    fh:'IDX:TLKM'},
-  {sym:'IDX:ASII',       label:'ASII',    name:'Astra International',   cat:'idx',    td:'ASII:IDX',    fh:'IDX:ASII'},
-  {sym:'IDX:GOTO',       label:'GOTO',    name:'GoTo Gojek',            cat:'idx',    td:'GOTO:IDX',    fh:'IDX:GOTO'},
   {sym:'BTC/USD',        label:'BTC',     name:'Bitcoin',               cat:'crypto', td:'BTC/USD',     fh:'BINANCE:BTCUSDT'},
   {sym:'ETH/USD',        label:'ETH',     name:'Ethereum',              cat:'crypto', td:'ETH/USD',     fh:'BINANCE:ETHUSDT'},
   {sym:'SOL/USD',        label:'SOL',     name:'Solana',                cat:'crypto', td:'SOL/USD',     fh:'BINANCE:SOLUSDT'},
@@ -448,11 +448,95 @@ let tab      = 'all';
 // Setup removed — key hardcoded
 
 // ─── FETCH HELPERS ────────────────────────────────────────────────────────────
-const fhGet = (path, p={}) =>
-  fetch(`${FH}/${path}?${new URLSearchParams({...p, token:FH_KEY})}`).then(r=>r.json()).catch(()=>null);
+const fhGet = (path, p={}) => {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 4000); // 4s timeout
+  return fetch(`${FH}/${path}?${new URLSearchParams({...p, token:FH_KEY})}`, {signal: ctrl.signal})
+    .then(r => r.json())
+    .catch(() => null)
+    .finally(() => clearTimeout(timer));
+};
 
-const tdGet = (path, p={}) =>
-  fetch(`${TD}/${path}?${new URLSearchParams({...p, apikey:TD_KEY})}`).then(r=>r.json()).catch(()=>null);
+const tdGet = (path, p={}) => {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 6000);
+  return fetch(`${TD}/${path}?${new URLSearchParams({...p, apikey:TD_KEY})}`, {signal: ctrl.signal})
+    .then(r => r.json())
+    .catch(() => null)
+    .finally(() => clearTimeout(timer));
+};
+
+// ── CoinGecko: get crypto prices (no key, generous limit)
+const CG_IDS = {
+  'BTC/USD':'bitcoin','ETH/USD':'ethereum','SOL/USD':'solana',
+  'BNB/USD':'binancecoin','XRP/USD':'ripple','DOGE/USD':'dogecoin',
+  'BINANCE:BTCUSDT':'bitcoin','BINANCE:ETHUSDT':'ethereum',
+  'BINANCE:SOLUSDT':'solana','BINANCE:BNBUSDT':'binancecoin',
+};
+async function fetchCryptoQuotes(syms) {
+  const ids = [...new Set(syms.map(s=>CG_IDS[s]).filter(Boolean))];
+  if(!ids.length) return {};
+  try {
+    const r = await fetch(`${CG}/simple/price?ids=${ids.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`, {signal: AbortSignal.timeout(5000)});
+    const d = await r.json();
+    // Map back to our sym keys
+    const out = {};
+    syms.forEach(s => {
+      const id = CG_IDS[s];
+      if(id && d[id]) {
+        const p = d[id].usd, chgPct = d[id].usd_24h_change||0;
+        out[s] = { c:p, o:p, h:p, l:p, pc:p*(1-chgPct/100), d:p*chgPct/100, dp:chgPct, t:Date.now()/1000 };
+      }
+    });
+    return out;
+  } catch(e) { return {}; }
+}
+
+// ── Yahoo Finance: get stock quotes via public API
+async function fetchYFQuotes(symbols) {
+  if(!symbols.length) return {};
+  try {
+    // Yahoo Finance v7 quote - works without key, CORS via query2
+    const syms = symbols.join(',');
+    const url = `${YFQ}?symbols=${encodeURIComponent(syms)}&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,regularMarketOpen,regularMarketDayHigh,regularMarketDayLow,regularMarketPreviousClose,regularMarketTime`;
+    const r = await fetch(url, {signal: AbortSignal.timeout(6000)});
+    const d = await r.json();
+    const results = d?.quoteResponse?.result || [];
+    const out = {};
+    results.forEach(q => {
+      if(q.regularMarketPrice) {
+        out[q.symbol] = {
+          c:  q.regularMarketPrice,
+          o:  q.regularMarketOpen || q.regularMarketPrice,
+          h:  q.regularMarketDayHigh || q.regularMarketPrice,
+          l:  q.regularMarketDayLow  || q.regularMarketPrice,
+          pc: q.regularMarketPreviousClose || q.regularMarketPrice,
+          d:  q.regularMarketChange || 0,
+          dp: q.regularMarketChangePercent || 0,
+          t:  q.regularMarketTime || Date.now()/1000,
+        };
+      }
+    });
+    return out;
+  } catch(e) { return {}; }
+}
+
+// Twelve Data batch quote — 1 API call for ALL symbols
+async function fetchTDBatch(tdSymbols) {// Twelve Data batch quote — 1 API call for ALL symbols
+async function fetchTDBatch(tdSymbols) {
+  if(!tdSymbols.length) return {};
+  // TD /quote endpoint supports comma-separated symbols
+  const symStr = tdSymbols.join(',');
+  const d = await tdGet('quote', {symbol: symStr});
+  if(!d) return {};
+  // If single symbol, TD returns object directly (not wrapped)
+  // If multiple, returns {SYM: {...}, SYM2: {...}}
+  if(d.symbol) {
+    // Single symbol response
+    return {[d.symbol]: d};
+  }
+  return d;
+}
 
 // ─── FORMAT HELPERS ───────────────────────────────────────────────────────────
 function isIDR(sym){ return sym.includes('IDX:') || sym.includes('IDR') || sym.includes(':IDX'); }
@@ -717,23 +801,68 @@ async function renderChart(sym) {
 }
 
 // ─── FETCH QUOTES (Finnhub) ───────────────────────────────────────────────────
-async function fetchQuote(fhSym) {
-  const d = await fhGet('quote', {symbol:fhSym});
-  if(d?.c) { qCache[fhSym]=d; return d; }
+async function fetchQuote(sym) {
+  // Try Yahoo Finance first
+  const yfData = await fetchYFQuotes([sym]);
+  if(yfData[sym]) { qCache[sym] = yfData[sym]; return qCache[sym]; }
+  // Fallback to crypto
+  const cgData = await fetchCryptoQuotes([sym]);
+  if(cgData[sym]) { qCache[sym] = cgData[sym]; return qCache[sym]; }
   return null;
 }
 async function fetchAllQuotes() {
-  const all = [
-    ...WL.map(w=>({k:w.sym, s:w.fh})),
-    ...INDICES.map(i=>({k:i.sym, s:i.sym}))
-  ];
-  for(let i=0; i<all.length; i+=6){
-    await Promise.all(all.slice(i,i+6).map(async x=>{
-      const d = await fhGet('quote',{symbol:x.s});
-      if(d?.c) qCache[x.k]=d;
-    }));
-    if(i+6<all.length) await sleep(600);
-  }
+  // ── Multi-source strategy for max speed & no rate limits:
+  // Crypto  → CoinGecko (free, no key, 1 batch call)
+  // Stocks  → Yahoo Finance (free, no key, 1 batch call)
+  // IDX     → Yahoo Finance with .JK suffix
+  // Forex   → Yahoo Finance with =X suffix
+  // Indices → Yahoo Finance
+
+  const cryptoItems = WL.filter(w => w.cat === 'crypto');
+  const stockItems  = WL.filter(w => w.cat === 'us');
+  const idxItems    = WL.filter(w => w.cat === 'idx');
+  const fxItems     = WL.filter(w => w.cat === 'fx');
+
+  // Yahoo Finance symbols mapping
+  const yfStockSyms = stockItems.map(w => w.sym);
+  const yfIdxSyms   = idxItems.map(w => w.sym.replace('IDX:', '') + '.JK');
+  const yfFxSyms    = fxItems.map(w => {
+    // OANDA:USD_IDR → USDIDR=X
+    return w.fh.replace('OANDA:','').replace('_','') + '=X';
+  });
+  const yfIdxIndices = ['^JKSE','^GSPC','^IXIC','^N225','^HSI','GC=F','CL=F'];
+
+  // Run all in parallel — independent sources, no interference
+  const [cryptoData, yfStockData, yfIdxData, yfFxData, yfIndicesData] = await Promise.all([
+    fetchCryptoQuotes(cryptoItems.map(w => w.sym)),
+    fetchYFQuotes(yfStockSyms),
+    fetchYFQuotes(yfIdxSyms),
+    fetchYFQuotes(yfFxSyms),
+    fetchYFQuotes(yfIdxIndices),
+  ]);
+
+  // Map results back to our cache keys
+  cryptoItems.forEach(w => { if(cryptoData[w.sym]) qCache[w.sym] = cryptoData[w.sym]; });
+  stockItems.forEach(w  => { if(yfStockData[w.sym]) qCache[w.sym] = yfStockData[w.sym]; });
+  idxItems.forEach((w,i) => {
+    const yfSym = w.sym.replace('IDX:', '') + '.JK';
+    if(yfIdxData[yfSym]) qCache[w.sym] = yfIdxData[yfSym];
+  });
+  fxItems.forEach((w,i) => {
+    const yfSym = w.fh.replace('OANDA:','').replace('_','') + '=X';
+    if(yfFxData[yfSym]) qCache[w.sym] = yfFxData[yfSym];
+  });
+
+  // Map index data
+  const indexMap = {
+    '^JKSE':'IDX:JKSE', '^GSPC':'OANDA:SPX500_USD', '^IXIC':'OANDA:NAS100_USD',
+    '^N225':'OANDA:JP225_USD', '^HSI':'OANDA:HK33_HKD', 'GC=F':'OANDA:XAU_USD', 'CL=F':'OANDA:BCO_USD'
+  };
+  Object.entries(indexMap).forEach(([yf, our]) => {
+    if(yfIndicesData[yf]) qCache[our] = yfIndicesData[yf];
+  });
+
+  renderWL(); renderTicker(); renderIndices();
 }
 
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
@@ -969,23 +1098,35 @@ function tick(){
 async function init(){
   tick(); setInterval(tick,1000);
 
-  fhGet('news',{category:'general'}).then(d=>renderNews(Array.isArray(d)?d.slice(0,12):[]));
-
-  await fetchAllQuotes();
-  renderWL(); renderTicker(); renderIndices();
-
-  document.getElementById('liveLabel').textContent='LIVE';
-  document.getElementById('liveLabel').style.color='var(--green)';
+  // 1. Show skeleton immediately
+  renderWL(); renderTicker();
   setTimeout(initMap, 200);
-  loadSentiment();
   setTimeout(connectWhaleWS, 500);
 
-  const first=WL.find(w=>qCache[w.sym]?.c);
-  if(first) await selectSym(first.sym);
+  // 2. Fetch all quotes — TD batch = fast single call
+  document.getElementById('liveLabel').textContent = 'LOADING';
+  document.getElementById('liveLabel').style.color = 'var(--orange)';
+
+  fetchAllQuotes().then(() => {
+    document.getElementById('liveLabel').textContent = 'LIVE';
+    document.getElementById('liveLabel').style.color = 'var(--green)';
+    renderWL(); renderTicker();
+    const first = WL.find(w => qCache[w.sym]?.c);
+    if(first) selectSym(first.sym);
+  });
+
+  // 3. News & sentiment — low priority, load after
+  setTimeout(() => {
+    fhGet('news',{category:'general'}).then(d => renderNews(Array.isArray(d)?d.slice(0,12):[]));
+  }, 300);
+  setTimeout(loadSentiment, 800);
 
   setInterval(async()=>{
     await fetchAllQuotes();
-    renderWL(); renderTicker(); renderIndices();
+    renderWL(); renderTicker();
+    // Update indices less frequently (every 2 refreshes)
+    if(!window._idxRefreshToggle) renderIndices();
+    window._idxRefreshToggle = !window._idxRefreshToggle;
     if(selected && qCache[selected]){
       const q=qCache[selected],idr=isIDR(selected);
       document.getElementById('cprice').textContent=fmtP(q.c,idr);
