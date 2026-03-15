@@ -843,15 +843,25 @@ async function fetchQuote(sym) {
   return null;
 }
 async function fetchAllQuotes() {
-  const cgItems  = WL.filter(w => w.cg);
-  const fhItems  = WL.filter(w => !w.cg);
-  const cgIds    = cgItems.map(w => w.cg).join(',');
-  const fhSyms   = fhItems.map(w => w.fh).join(',');
+  // Crypto via CoinGecko (free, no key, CORS OK)
+  const cgItems = WL.filter(w => w.cg);
+  const cgIds   = cgItems.map(w => w.cg).join(',');
+  const cgFetch = fetch(
+    `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds}&vs_currencies=usd&include_24hr_change=true`,
+    {signal: AbortSignal.timeout(6000)}
+  ).then(r => r.json()).catch(() => ({}));
 
-  // Both go through Vercel /api/quotes proxy — no CORS
-  const [cgData, fhData] = await Promise.all([
-    fetch(`/api/quotes?type=crypto&ids=${cgIds}`).then(r=>r.json()).catch(()=>({})),
-    fetch(`/api/quotes?type=stock&symbols=${encodeURIComponent(fhSyms)}`).then(r=>r.json()).catch(()=>({})),
+  // Stocks + IDX + Forex via Finnhub (13 symbols, within rate limit)
+  const fhItems   = WL.filter(w => !w.cg);
+  const fhFetches = fhItems.map(w =>
+    fhGet('quote', {symbol: w.fh})
+      .then(d => ({sym: w.sym, d}))
+      .catch(() => ({sym: w.sym, d: null}))
+  );
+
+  const [cgData, fhResults] = await Promise.all([
+    cgFetch,
+    Promise.all(fhFetches),
   ]);
 
   // Map CoinGecko results
@@ -864,33 +874,10 @@ async function fetchAllQuotes() {
     }
   });
 
-  // Map Finnhub results (keyed by fh symbol)
-  fhItems.forEach(w => {
-    const d = fhData[w.fh];
-    if(d?.c) qCache[w.sym] = d;
+  // Map Finnhub results
+  fhResults.forEach(r => {
+    if(r.d?.c) qCache[r.sym] = r.d;
   });
-
-  // Forex via frankfurter proxy
-  fetch('/api/quotes?type=fx').then(r=>r.json()).then(fx => {
-    if(!fx?.rates) return;
-    const r = fx.rates;
-    const fxMap = {
-      'EUR/USD': r.EUR ? 1/r.EUR*r.EUR : null, // EUR per USD → invert
-      'USD/IDR': r.IDR,
-      'GBP/USD': r.GBP ? 1/r.GBP : null,
-      'USD/JPY': r.JPY,
-    };
-    // frankfurter returns rates FROM USD, so USD/IDR = IDR value directly
-    WL.filter(w=>w.cat==='fx').forEach(w => {
-      let p = null;
-      if(w.sym==='USD/IDR' && r.IDR) p = r.IDR;
-      else if(w.sym==='EUR/USD' && r.EUR) p = r.EUR; // this is EUR per USD, so we show as-is
-      else if(w.sym==='GBP/USD' && r.GBP) p = r.GBP;
-      else if(w.sym==='USD/JPY' && r.JPY) p = r.JPY;
-      if(p) qCache[w.sym] = {c:p, o:p, h:p, l:p, pc:p, d:0, dp:0, t:Date.now()/1000};
-    });
-    renderWL(); renderTicker();
-  }).catch(()=>{});
 
   renderWL(); renderTicker(); renderIndices();
 }
@@ -901,20 +888,19 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
 async function fetchNews(fhSym) {
   const today = new Date().toISOString().split('T')[0];
   const from  = new Date(Date.now()-7*864e5).toISOString().split('T')[0];
-  try {
-    let url;
-    if(!fhSym.startsWith('BINANCE:') && !fhSym.startsWith('OANDA:')) {
-      const plain = fhSym.replace('IDX:','');
-      url = `/api/news?symbol=${plain}&from=${from}&to=${today}`;
-    } else {
-      url = `/api/news?category=general`;
-    }
-    const d = await fetch(url).then(r=>r.json()).catch(()=>[]);
-    if(Array.isArray(d) && d.length) return d;
-    // fallback general news
-    const g = await fetch('/api/news?category=general').then(r=>r.json()).catch(()=>[]);
-    return Array.isArray(g) ? g : [];
-  } catch(e) { return []; }
+  let items = [];
+  // Company-specific news for stocks
+  if(!fhSym.startsWith('BINANCE:') && !fhSym.startsWith('OANDA:')) {
+    const plain = fhSym.replace('IDX:','');
+    const d = await fhGet('company-news', {symbol: plain, from, to: today});
+    if(Array.isArray(d) && d.length) items = d.slice(0, 15);
+  }
+  // Fallback: general market news
+  if(!items.length) {
+    const d = await fhGet('news', {category: 'general'});
+    if(Array.isArray(d)) items = d.slice(0, 15);
+  }
+  return items;
 }
 
 // ─── RENDER WATCHLIST ─────────────────────────────────────────────────────────
@@ -1132,6 +1118,44 @@ function tick(){
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
+const TRADE_HUBS = {
+  'NEW YORK':    {x:0.235, y:0.38, vol:1.0,  color:'#f5a623', regions:['US']},
+  'LONDON':      {x:0.465, y:0.27, vol:0.95, color:'#4a9eff', regions:['GB','EU']},
+  'TOKYO':       {x:0.81,  y:0.34, vol:0.85, color:'#00d4a0', regions:['JP']},
+  'HONG KONG':   {x:0.775, y:0.42, vol:0.80, color:'#00c8e8', regions:['HK','CN']},
+  'SINGAPORE':   {x:0.765, y:0.52, vol:0.75, color:'#a855f7', regions:['SG']},
+  'JAKARTA':     {x:0.775, y:0.565, vol:0.55, color:'#ff4a6e', regions:['ID']},
+  'SYDNEY':      {x:0.855, y:0.68, vol:0.50, color:'#00d4a0', regions:['AU']},
+  'FRANKFURT':   {x:0.49,  y:0.27, vol:0.65, color:'#4a9eff', regions:['DE']},
+  'SHANGHAI':    {x:0.795, y:0.37, vol:0.70, color:'#ffd700', regions:['CN']},
+  'DUBAI':       {x:0.595, y:0.42, vol:0.55, color:'#f5a623', regions:['AE']},
+};
+
+const ASSET_HUBS = {
+  'AAPL':    ['NEW YORK','LONDON','TOKYO'],
+  'MSFT':    ['NEW YORK','LONDON','SINGAPORE'],
+  'NVDA':    ['NEW YORK','TOKYO','HONG KONG'],
+  'TSLA':    ['NEW YORK','LONDON','FRANKFURT'],
+  'GOOGL':   ['NEW YORK','LONDON','SINGAPORE'],
+  'AMZN':    ['NEW YORK','LONDON','TOKYO'],
+  'META':    ['NEW YORK','LONDON','FRANKFURT'],
+  'BTC/USD': ['NEW YORK','LONDON','HONG KONG','SINGAPORE','FRANKFURT'],
+  'ETH/USD': ['NEW YORK','LONDON','SINGAPORE','HONG KONG'],
+  'SOL/USD': ['NEW YORK','SINGAPORE','HONG KONG'],
+  'BNB/USD': ['HONG KONG','SINGAPORE','DUBAI'],
+  'EUR/USD': ['LONDON','FRANKFURT','NEW YORK','TOKYO'],
+  'USD/IDR': ['JAKARTA','SINGAPORE','HONG KONG','LONDON'],
+  'GBP/USD': ['LONDON','NEW YORK','FRANKFURT'],
+  'IDX:BBCA':['JAKARTA','SINGAPORE','HONG KONG'],
+  'IDX:BMRI':['JAKARTA','SINGAPORE'],
+  'IDX:BBRI':['JAKARTA','SINGAPORE'],
+  'IDX:TLKM':['JAKARTA','SINGAPORE','HONG KONG'],
+  'IDX:ASII':['JAKARTA','SINGAPORE'],
+  'IDX:GOTO':['JAKARTA','SINGAPORE','HONG KONG'],
+};
+
+const DEFAULT_HUBS = ['NEW YORK','LONDON','TOKYO','SINGAPORE'];
+
 async function init(){
   tick(); setInterval(tick,1000);
 
@@ -1145,6 +1169,7 @@ async function init(){
   // ── STEP 2: Non-blocking background tasks
   setTimeout(initMap, 200);
   setTimeout(connectWhaleWS, 500);
+  setTimeout(connectPriceWS, 800); // Realtime crypto prices
   setTimeout(loadSentiment, 1000);
   setTimeout(() => {
     fhGet('news',{category:'general'})
@@ -1202,44 +1227,7 @@ init().catch(e => {
 
 // ─── WORLD MAP ENGINE ─────────────────────────────────────────────────────────
 // Trading centers with coordinates (canvas %, approximate Mercator projection)
-const TRADE_HUBS = {
-  'NEW YORK':    {x:0.235, y:0.38, vol:1.0,  color:'#f5a623', regions:['US']},
-  'LONDON':      {x:0.465, y:0.27, vol:0.95, color:'#4a9eff', regions:['GB','EU']},
-  'TOKYO':       {x:0.81,  y:0.34, vol:0.85, color:'#00d4a0', regions:['JP']},
-  'HONG KONG':   {x:0.775, y:0.42, vol:0.80, color:'#00c8e8', regions:['HK','CN']},
-  'SINGAPORE':   {x:0.765, y:0.52, vol:0.75, color:'#a855f7', regions:['SG']},
-  'JAKARTA':     {x:0.775, y:0.565, vol:0.55, color:'#ff4a6e', regions:['ID']},
-  'SYDNEY':      {x:0.855, y:0.68, vol:0.50, color:'#00d4a0', regions:['AU']},
-  'FRANKFURT':   {x:0.49,  y:0.27, vol:0.65, color:'#4a9eff', regions:['DE']},
-  'SHANGHAI':    {x:0.795, y:0.37, vol:0.70, color:'#ffd700', regions:['CN']},
-  'DUBAI':       {x:0.595, y:0.42, vol:0.55, color:'#f5a623', regions:['AE']},
-};
-
 // Asset → which hubs are most active
-const ASSET_HUBS = {
-  'AAPL':    ['NEW YORK','LONDON','TOKYO'],
-  'MSFT':    ['NEW YORK','LONDON','SINGAPORE'],
-  'NVDA':    ['NEW YORK','TOKYO','HONG KONG'],
-  'TSLA':    ['NEW YORK','LONDON','FRANKFURT'],
-  'GOOGL':   ['NEW YORK','LONDON','SINGAPORE'],
-  'AMZN':    ['NEW YORK','LONDON','TOKYO'],
-  'META':    ['NEW YORK','LONDON','FRANKFURT'],
-  'BTC/USD': ['NEW YORK','LONDON','HONG KONG','SINGAPORE','FRANKFURT'],
-  'ETH/USD': ['NEW YORK','LONDON','SINGAPORE','HONG KONG'],
-  'SOL/USD': ['NEW YORK','SINGAPORE','HONG KONG'],
-  'BNB/USD': ['HONG KONG','SINGAPORE','DUBAI'],
-  'EUR/USD': ['LONDON','FRANKFURT','NEW YORK','TOKYO'],
-  'USD/IDR': ['JAKARTA','SINGAPORE','HONG KONG','LONDON'],
-  'GBP/USD': ['LONDON','NEW YORK','FRANKFURT'],
-  'IDX:BBCA':['JAKARTA','SINGAPORE','HONG KONG'],
-  'IDX:BMRI':['JAKARTA','SINGAPORE'],
-  'IDX:BBRI':['JAKARTA','SINGAPORE'],
-  'IDX:TLKM':['JAKARTA','SINGAPORE','HONG KONG'],
-  'IDX:ASII':['JAKARTA','SINGAPORE'],
-  'IDX:GOTO':['JAKARTA','SINGAPORE','HONG KONG'],
-};
-
-const DEFAULT_HUBS = ['NEW YORK','LONDON','TOKYO','SINGAPORE'];
 
 let mapAnimFrame = null;
 let mapArcs = [];
@@ -1876,6 +1864,66 @@ let whaleTotalSell = 0;
 let whaleTradeCount = 0;
 let whaleLargest    = 0;
 let wsReconnectTimer = null;
+
+// ─── PRICE WEBSOCKET (realtime crypto prices via Binance miniTicker) ────────────
+const PRICE_SYMBOLS = ['btcusdt','ethusdt','solusdt','bnbusdt','xrpusdt'];
+let priceWS = null;
+
+function connectPriceWS() {
+  if(priceWS) { try { priceWS.close(); } catch(e){} }
+  const streams = PRICE_SYMBOLS.map(s => `${s}@miniTicker`).join('/');
+  try {
+    priceWS = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
+  } catch(e) { return; }
+
+  priceWS.onmessage = (event) => {
+    try {
+      const msg  = JSON.parse(event.data);
+      const d    = msg.data || msg;
+      if(!d || !d.c || !d.s) return;
+      // Map Binance symbol to our WL key
+      const symMap = {
+        'BTCUSDT':'BTC/USD','ETHUSDT':'ETH/USD','SOLUSDT':'SOL/USD',
+        'BNBUSDT':'BNB/USD','XRPUSDT':'XRP/USD'
+      };
+      const wlSym = symMap[d.s];
+      if(!wlSym) return;
+      const p   = parseFloat(d.c);
+      const o   = parseFloat(d.o);
+      const chg = p - o;
+      const pct = (chg / o) * 100;
+      // Update cache with fresh realtime data
+      qCache[wlSym] = {
+        c: p, o: o, h: parseFloat(d.h), l: parseFloat(d.l),
+        pc: o, d: chg, dp: pct, t: Date.now()/1000, _static: false
+      };
+      // Update UI if this is the selected symbol
+      if(selected === wlSym) {
+        const idr = isIDR(wlSym);
+        document.getElementById('cprice').textContent = fmtP(p, idr);
+        const el = document.getElementById('cchg');
+        el.textContent = `${chg>=0?'+':''}${fmtP(chg,idr)} (${chg>=0?'+':''}${pct.toFixed(2)}%)`;
+        el.className = 'cchg ' + (chg >= 0 ? 'up' : 'dn');
+        renderOB(p, idr);
+      }
+    } catch(e) {}
+  };
+
+  priceWS.onclose = () => { setTimeout(connectPriceWS, 3000); };
+  priceWS.onerror = () => { try { priceWS.close(); } catch(e){} };
+}
+
+// Update watchlist ticker from cache every 2 seconds
+setInterval(() => {
+  renderWL();
+  renderTicker();
+  // Update LIVE label when we have real data
+  const hasLive = WL.some(w => qCache[w.sym] && !qCache[w.sym]._static);
+  if(hasLive) {
+    document.getElementById('liveLabel').textContent = 'LIVE';
+    document.getElementById('liveLabel').style.color = 'var(--green)';
+  }
+}, 2000);
 
 function connectWhaleWS() {
   if(whaleWS) { try { whaleWS.close(); } catch(e){} }
