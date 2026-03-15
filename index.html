@@ -386,6 +386,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 const FH_KEY = 'd6r5v1pr01qgdhqd9jo0d6r5v1pr01qgdhqd9jog';
 const TD_KEY = '5cb91a751fc04995ab1e0f161c2aa02b';
 
+// ─── CACHE (declared early — used by STATIC_PRICES below)
+let qCache  = {};
+let chCache = {};
+
 // ── STATIC FALLBACK PRICES (shown instantly, updated by APIs in background)
 // These ensure the terminal ALWAYS renders — never blank
 const STATIC_PRICES = {
@@ -469,8 +473,6 @@ const ECON = [
 ];
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
-let qCache   = {};
-let chCache  = {};
 let selected = null;
 let tfRange  = '1day';
 let tfIntvl  = '15min';
