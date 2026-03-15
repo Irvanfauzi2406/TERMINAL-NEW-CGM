@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Market Terminal — Live</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0c0f;--bg2:#0f1218;--bg3:#141820;--bg4:#1a2030;
+  --border:#1e2535;--border2:#263040;
+  --text:#c8d4e8;--text2:#8a9ab8;--text3:#4a5a78;
+  --orange:#f5a623;--green:#00d4a0;--red:#ff4a6e;
+  --blue:#4a9eff;--cyan:#00c8e8;--purple:#a855f7;
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:11px;overflow:hidden}
+.wrap{display:flex;flex-direction:column;height:100vh}
+
+/* TOP BAR */
+.topbar{background:var(--bg2);border-bottom:2px solid var(--orange);display:flex;align-items:center;justify-content:space-between;padding:0 12px;height:34px;flex-shrink:0}
+.brand{color:var(--orange);font-weight:600;font-size:14px;letter-spacing:3px}
+.nav-tabs{display:flex}
+.nav-tab{padding:0 12px;height:34px;display:flex;align-items:center;color:var(--text2);cursor:pointer;font-size:10px;font-weight:500;letter-spacing:1px;border-right:1px solid var(--border);transition:all .15s;user-select:none}
+.nav-tab:hover,.nav-tab.active{background:var(--bg4);color:var(--orange)}
+.topbar-right{display:flex;align-items:center;gap:14px;font-size:10px}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+#clock{color:var(--cyan);letter-spacing:1px}
+
+/* TICKER */
+.ticker-strip{background:var(--bg3);border-bottom:1px solid var(--border);height:26px;overflow:hidden;display:flex;align-items:center;flex-shrink:0;position:relative}
+.ticker-inner{display:inline-flex;white-space:nowrap;animation:scroll-ticker 60s linear infinite}
+.ticker-inner:hover{animation-play-state:paused}
+@keyframes scroll-ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.tick-item{padding:0 14px;border-right:1px solid var(--border);display:inline-flex;align-items:center;gap:7px;height:26px;font-size:10px;cursor:pointer}
+.tick-sym{color:var(--orange);font-weight:600}
+.up{color:var(--green)}.dn{color:var(--red)}.nt{color:var(--text3)}
+
+/* LAYOUT */
+.main{display:grid;grid-template-columns:210px 1fr 210px;grid-template-rows:1fr 195px;gap:1px;background:var(--border);flex:1;min-height:0}
+.panel{background:var(--bg);display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.ph{background:var(--bg2);border-bottom:1px solid var(--border2);padding:5px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.pt{color:var(--orange);font-size:10px;font-weight:600;letter-spacing:1.5px}
+.ps{color:var(--text3);font-size:9px}
+
+/* WATCHLIST */
+.watchlist{overflow-y:auto;flex:1}
+.wl-item{padding:5px 10px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:58px 1fr auto;gap:4px;align-items:center;cursor:pointer;transition:background .1s;user-select:none}
+.wl-item:hover,.wl-item.sel{background:var(--bg4)}
+.wl-sym{color:var(--orange);font-weight:600;font-size:11px}
+.wl-name{color:var(--text3);font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-price{color:var(--text);text-align:right;font-size:11px;font-family:var(--mono)}
+.wl-pct{font-size:9px;text-align:right}
+.spin{opacity:.45;animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:.8}}
+
+/* CHART PANEL */
+.chart-panel{grid-column:2;grid-row:1/2}
+.chart-hdr{background:var(--bg2);border-bottom:1px solid var(--border2);padding:7px 12px;display:flex;align-items:center;gap:14px;flex-shrink:0}
+.csym{font-size:20px;font-weight:600;color:var(--text)}
+.cprice{font-size:23px;font-weight:400;font-family:var(--mono)}
+.cchg{font-size:12px;padding:2px 8px;border-radius:2px;font-family:var(--mono)}
+.cchg.up{color:var(--green);background:rgba(0,212,160,.1)}
+.cchg.dn{color:var(--red);background:rgba(255,74,110,.1)}
+.cmeta{color:var(--text3);font-size:9px;margin-left:auto;line-height:1.75;text-align:right}
+.tf-bar{background:var(--bg3);border-bottom:1px solid var(--border);padding:4px 12px;display:flex;gap:4px;align-items:center;flex-shrink:0}
+.tf-btn{padding:2px 8px;font-size:9px;font-family:var(--mono);background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;transition:all .15s;border-radius:1px;letter-spacing:.5px}
+.tf-btn:hover{border-color:var(--orange);color:var(--orange)}
+.tf-btn.active{background:var(--orange);border-color:var(--orange);color:#000;font-weight:700}
+.chart-area{flex:1;position:relative;min-height:0;padding:4px}
+#mainChart{display:block}
+
+/* NEWS */
+.news-feed{overflow-y:auto;flex:1}
+.news-item{padding:7px 10px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.news-item:hover{background:var(--bg4)}
+.ntime{color:var(--text3);font-size:9px;margin-bottom:2px}
+.ntag{display:inline-block;padding:1px 5px;font-size:8px;font-weight:600;letter-spacing:.5px;border-radius:1px;margin-right:4px;margin-bottom:3px}
+.t-bull{background:rgba(0,212,160,.1);color:var(--green);border:1px solid rgba(0,212,160,.2)}
+.t-bear{background:rgba(255,74,110,.1);color:var(--red);border:1px solid rgba(255,74,110,.2)}
+.t-econ{background:rgba(74,158,255,.1);color:var(--blue);border:1px solid rgba(74,158,255,.2)}
+.t-corp{background:rgba(245,166,35,.1);color:var(--orange);border:1px solid rgba(245,166,35,.2)}
+.t-crypto{background:rgba(168,85,247,.1);color:var(--purple);border:1px solid rgba(168,85,247,.2)}
+.nhead{color:var(--text);font-size:10px;line-height:1.45;font-family:var(--sans)}
+.nsrc{color:var(--text3);font-size:9px;margin-top:2px}
+
+/* BOTTOM */
+.bot{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--border)}
+.mkt-table{width:100%;border-collapse:collapse;font-size:10px}
+.mkt-table th{padding:3px 8px;text-align:right;color:var(--text3);font-size:9px;font-weight:500;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+.mkt-table th:first-child{text-align:left}
+.mkt-table td{padding:3px 8px;text-align:right;border-bottom:1px solid var(--border);font-family:var(--mono)}
+.mkt-table td:first-child{text-align:left;color:var(--orange);font-weight:600;font-size:10px}
+.mkt-table tr:hover td{background:var(--bg4)}
+.ob-row{display:grid;grid-template-columns:1fr 80px 72px;padding:3px 10px;font-size:10px;font-family:var(--mono);border-bottom:1px solid rgba(30,37,53,.4);position:relative;overflow:hidden}
+.ob-bar{position:absolute;top:0;bottom:0;opacity:.09}
+.ob-row.bid .ob-bar{right:0;background:var(--green)}
+.ob-row.ask .ob-bar{left:0;background:var(--red)}
+.ob-hdr{display:grid;grid-template-columns:1fr 80px 72px;padding:3px 10px;font-size:9px;color:var(--text3);border-bottom:1px solid var(--border2);letter-spacing:.5px}
+.ob-mid{padding:4px 10px;background:var(--bg3);border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center}
+
+/* CMD BAR */
+.cmdbar{background:var(--bg2);border-top:2px solid var(--orange);padding:5px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.cmd-prompt{color:var(--orange);font-weight:600;font-size:12px}
+.cmd-input{flex:1;background:none;border:none;outline:none;color:var(--text);font-family:var(--mono);font-size:11px;caret-color:var(--orange)}
+.cmd-hint{color:var(--text3);font-size:9px}
+
+/* TOAST */
+.toast{position:fixed;bottom:44px;right:12px;background:var(--bg4);border:1px solid var(--border2);padding:6px 12px;font-size:10px;color:var(--text2);border-radius:2px;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:1}
+
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px">
+    <span class="brand">TERMINAL</span>
+    <div class="nav-tabs">
+      <div class="nav-tab active" onclick="setTab(this,'all')">ALL</div>
+      <div class="nav-tab" onclick="setTab(this,'us')">US STOCKS</div>
+      <div class="nav-tab" onclick="setTab(this,'idx')">IDX / BEI</div>
+      <div class="nav-tab" onclick="setTab(this,'crypto')">CRYPTO</div>
+      <div class="nav-tab" onclick="setTab(this,'fx')">FOREX</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="live-dot"></span>
+    <span id="liveLabel" style="color:var(--text3);font-size:9px;letter-spacing:.5px">CONNECTING</span>
+    <span id="clock"></span>
+  </div>
+</div>
+
+<!-- TICKER STRIP -->
+<div class="ticker-strip">
+  <div class="ticker-inner" id="tickerInner">
+    <span class="tick-item spin" style="color:var(--text3)">Memuat data live...</span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- WATCHLIST -->
+  <div class="panel">
+    <div class="ph"><span class="pt">WATCHLIST</span><span class="ps" id="wlCount">—</span></div>
+    <div class="watchlist" id="watchlist">
+      <div style="padding:24px 10px;color:var(--text3);text-align:center" class="spin">Fetching quotes...</div>
+    </div>
+  </div>
+
+  <!-- CHART -->
+  <div class="panel chart-panel">
+    <div class="chart-hdr">
+      <div>
+        <div style="color:var(--text3);font-size:9px;letter-spacing:1px;margin-bottom:2px" id="cname">—</div>
+        <span class="csym" id="csym">—</span>
+      </div>
+      <div>
+        <div class="cprice" id="cprice" style="color:var(--text)">—</div>
+        <span class="cchg" id="cchg">—</span>
+      </div>
+      <div class="cmeta" id="cmeta">Select a symbol to view data</div>
+    </div>
+    <div class="tf-bar">
+      <span style="color:var(--text3);font-size:9px;margin-right:4px">RANGE:</span>
+      <button class="tf-btn" onclick="setTF(this,7,'D')">1W</button>
+      <button class="tf-btn active" onclick="setTF(this,30,'D')">1M</button>
+      <button class="tf-btn" onclick="setTF(this,90,'D')">3M</button>
+      <button class="tf-btn" onclick="setTF(this,180,'D')">6M</button>
+      <button class="tf-btn" onclick="setTF(this,365,'D')">1Y</button>
+      <button class="tf-btn" onclick="setTF(this,365,'W')">ALL</button>
+      <span style="margin-left:auto;font-size:9px" id="chartStatus" class="nt">Finnhub</span>
+    </div>
+    <div class="chart-area"><canvas id="mainChart"></canvas></div>
+  </div>
+
+  <!-- NEWS -->
+  <div class="panel">
+    <div class="ph"><span class="pt">NEWS FEED</span><span class="ps up">● LIVE</span></div>
+    <div class="news-feed" id="newsFeed">
+      <div style="padding:24px 10px;color:var(--text3);text-align:center" class="spin">Loading news...</div>
+    </div>
+  </div>
+
+  <!-- BOTTOM -->
+  <div class="bot">
+
+    <!-- INDICES -->
+    <div class="panel">
+      <div class="ph"><span class="pt">GLOBAL INDICES</span><span class="ps" id="idxTime">Live</span></div>
+      <div style="overflow-y:auto;flex:1">
+        <table class="mkt-table">
+          <thead><tr><th style="text-align:left">MARKET</th><th>PRICE</th><th>CHG</th><th>%</th></tr></thead>
+          <tbody id="idxTable"><tr><td colspan="4" style="text-align:center;color:var(--text3)" class="spin">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ORDER BOOK -->
+    <div class="panel">
+      <div class="ph"><span class="pt">ORDER BOOK</span><span class="ps" id="obSym">—</span></div>
+      <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+        <div class="ob-hdr"><span>SIZE</span><span style="text-align:right">PRICE</span><span style="text-align:right">TOTAL</span></div>
+        <div id="obAsks" style="flex:1;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end"></div>
+        <div class="ob-mid">
+          <span style="color:var(--text3);font-size:9px">MID PRICE</span>
+          <span id="obMid" style="font-size:12px;font-weight:600">—</span>
+          <span id="obSpr" style="color:var(--text3);font-size:9px">SPR —</span>
+        </div>
+        <div id="obBids" style="flex:1;overflow:hidden"></div>
+      </div>
+    </div>
+
+    <!-- ECON CALENDAR -->
+    <div class="panel">
+      <div class="ph"><span class="pt">ECONOMIC EVENTS</span><span class="ps">This week</span></div>
+      <div style="overflow-y:auto;flex:1" id="econCal"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- CMD BAR -->
+<div class="cmdbar">
+  <span class="cmd-prompt">▶</span>
+  <input class="cmd-input" id="cmdInput" placeholder="Ketik simbol saham lalu Enter — contoh: AAPL  BBCA  BTC  EURUSD  AMZN  NVDA ..." onkeydown="handleCmd(event)">
+  <span class="cmd-hint">ENTER:LOAD &nbsp; ESC:CLEAR</span>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── API CONFIG ──────────────────────────────────────────────────────────────
+const API = 'https://finnhub.io/api/v1';
+const KEY = 'd6r5v1pr01qgdhqd9jo0d6r5v1pr01qgdhqd9jog';
+const h = url => fetch(url).then(r=>r.json()).catch(()=>null);
+const fh = (path, params={}) => {
+  const p = new URLSearchParams({...params, token:KEY});
+  return h(`${API}/${path}?${p}`);
+};
+
+// ─── WATCHLIST CONFIG ────────────────────────────────────────────────────────
+// Finnhub symbols: US stocks plain, IDX uses exchange prefix, crypto uses BINANCE:BTCUSDT
+const WL = [
+  // US Stocks
+  {sym:'AAPL',  label:'AAPL',    name:'Apple Inc',            cat:'us',     type:'stock'},
+  {sym:'MSFT',  label:'MSFT',    name:'Microsoft Corp',       cat:'us',     type:'stock'},
+  {sym:'NVDA',  label:'NVDA',    name:'NVIDIA Corp',          cat:'us',     type:'stock'},
+  {sym:'TSLA',  label:'TSLA',    name:'Tesla Inc',            cat:'us',     type:'stock'},
+  {sym:'GOOGL', label:'GOOGL',   name:'Alphabet Inc',         cat:'us',     type:'stock'},
+  {sym:'AMZN',  label:'AMZN',    name:'Amazon.com',           cat:'us',     type:'stock'},
+  {sym:'META',  label:'META',    name:'Meta Platforms',       cat:'us',     type:'stock'},
+  {sym:'JPM',   label:'JPM',     name:'JPMorgan Chase',       cat:'us',     type:'stock'},
+  // IDX — Finnhub uses "IDX:BBCA" format
+  {sym:'IDX:BBCA', label:'BBCA', name:'Bank BCA',             cat:'idx',    type:'stock'},
+  {sym:'IDX:BMRI', label:'BMRI', name:'Bank Mandiri',         cat:'idx',    type:'stock'},
+  {sym:'IDX:BBRI', label:'BBRI', name:'Bank BRI',             cat:'idx',    type:'stock'},
+  {sym:'IDX:TLKM', label:'TLKM', name:'Telkom Indonesia',     cat:'idx',    type:'stock'},
+  {sym:'IDX:ASII', label:'ASII', name:'Astra International',  cat:'idx',    type:'stock'},
+  {sym:'IDX:GOTO', label:'GOTO', name:'GoTo Gojek Tokopedia', cat:'idx',    type:'stock'},
+  {sym:'IDX:BREN', label:'BREN', name:'Barito Renewables',    cat:'idx',    type:'stock'},
+  {sym:'IDX:UNVR', label:'UNVR', name:'Unilever Indonesia',   cat:'idx',    type:'stock'},
+  // Crypto — Finnhub uses BINANCE exchange
+  {sym:'BINANCE:BTCUSDT', label:'BTC',  name:'Bitcoin',   cat:'crypto', type:'crypto'},
+  {sym:'BINANCE:ETHUSDT', label:'ETH',  name:'Ethereum',  cat:'crypto', type:'crypto'},
+  {sym:'BINANCE:SOLUSDT', label:'SOL',  name:'Solana',    cat:'crypto', type:'crypto'},
+  {sym:'BINANCE:BNBUSDT', label:'BNB',  name:'BNB',       cat:'crypto', type:'crypto'},
+  // Forex — Finnhub uses OANDA:USD_IDR format
+  {sym:'OANDA:USD_IDR',  label:'USD/IDR', name:'Dollar / Rupiah', cat:'fx', type:'forex'},
+  {sym:'OANDA:EUR_USD',  label:'EUR/USD', name:'Euro / Dollar',   cat:'fx', type:'forex'},
+  {sym:'OANDA:GBP_USD',  label:'GBP/USD', name:'Sterling / Dollar', cat:'fx', type:'forex'},
+  {sym:'OANDA:USD_JPY',  label:'USD/JPY', name:'Dollar / Yen',    cat:'fx', type:'forex'},
+];
+
+// Global indices (also via quote endpoint)
+const INDICES = [
+  {sym:'OANDA:SPX500_USD', name:'S&P 500'},
+  {sym:'OANDA:NAS100_USD', name:'NASDAQ 100'},
+  {sym:'OANDA:UK100_GBP',  name:'FTSE 100'},
+  {sym:'OANDA:DE30_EUR',   name:'DAX 30'},
+  {sym:'OANDA:JP225_USD',  name:'Nikkei 225'},
+  {sym:'OANDA:XAU_USD',    name:'Gold (XAU)'},
+  {sym:'OANDA:BCO_USD',    name:'Brent Crude'},
+  {sym:'OANDA:USD_IDR',    name:'USD/IDR'},
+];
+
+const ECON = [
+  {day:'MON', event:'BI Rate Decision', prev:'6.25%', fore:'6.25%', imp:'high'},
+  {day:'TUE', event:'Indonesia CPI YoY', prev:'2.75%', fore:'2.90%', imp:'high'},
+  {day:'WED', event:'FOMC Minutes (Fed)', prev:'—', fore:'—', imp:'high'},
+  {day:'WED', event:'US CPI MoM', prev:'0.3%', fore:'0.2%', imp:'high'},
+  {day:'THU', event:'ECB Rate Statement', prev:'4.50%', fore:'4.25%', imp:'high'},
+  {day:'THU', event:'US Initial Jobless Claims', prev:'212K', fore:'215K', imp:'med'},
+  {day:'FRI', event:'Japan CPI YoY', prev:'2.2%', fore:'2.8%', imp:'med'},
+  {day:'FRI', event:'US Non-Farm Payrolls', prev:'275K', fore:'200K', imp:'high'},
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let cache = {};          // sym -> quote data
+let selectedSym = null;
+let tfDays = 30;
+let tfRes  = 'D';
+let chart  = null;
+let tab    = 'all';
+
+// ─── FORMAT ──────────────────────────────────────────────────────────────────
+function fmtNum(n, dec=2) {
+  if(n==null||isNaN(n)) return '—';
+  const abs = Math.abs(n);
+  if(abs>=1e12) return (n/1e12).toFixed(2)+'T';
+  if(abs>=1e9)  return (n/1e9).toFixed(2)+'B';
+  if(abs>=1e6)  return (n/1e6).toFixed(2)+'M';
+  if(abs>=1000) return n.toLocaleString(undefined,{minimumFractionDigits:dec,maximumFractionDigits:dec});
+  return n.toFixed(dec);
+}
+function fmtP(p, isIDR) {
+  if(p==null) return '—';
+  if(isIDR) return Math.round(p).toLocaleString('id-ID');
+  if(p>=10000) return p.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(p>=100)   return p.toFixed(2);
+  if(p>=1)     return p.toFixed(4);
+  return p.toFixed(6);
+}
+function isIDR(sym) { return sym.includes('IDX:')||sym.includes('USD_IDR')||sym.includes('IDR'); }
+function timeAgo(ts) {
+  if(!ts) return '';
+  const d = Math.floor((Date.now()-ts*1000)/1000);
+  if(d<60) return d+'s ago';
+  if(d<3600) return Math.floor(d/60)+'m ago';
+  if(d<86400) return Math.floor(d/3600)+'h ago';
+  return Math.floor(d/86400)+'d ago';
+}
+
+// ─── FETCH QUOTE ─────────────────────────────────────────────────────────────
+async function fetchQuote(sym) {
+  const d = await fh('quote', {symbol:sym});
+  if(d && d.c) { cache[sym]=d; return d; }
+  return null;
+}
+
+async function fetchAllQuotes() {
+  const all = [...WL.map(w=>w.sym), ...INDICES.map(i=>i.sym)];
+  // Fetch 5 at a time to avoid rate limit (60 calls/min free)
+  const chunks = [];
+  for(let i=0;i<all.length;i+=5) chunks.push(all.slice(i,i+5));
+  for(const chunk of chunks) {
+    await Promise.all(chunk.map(s=>fetchQuote(s)));
+    await new Promise(r=>setTimeout(r,300)); // small pause between batches
+  }
+}
+
+// ─── FETCH CANDLES ────────────────────────────────────────────────────────────
+async function fetchCandles(sym, days, resolution) {
+  const to   = Math.floor(Date.now()/1000);
+  const from = to - days*24*3600;
+  let path = 'stock/candle';
+  // Crypto uses different endpoint
+  if(sym.startsWith('BINANCE:')) path = 'crypto/candle';
+  else if(sym.startsWith('OANDA:'))  path = 'forex/candle';
+  const d = await fh(path, {symbol:sym, resolution, from, to});
+  if(!d || d.s==='no_data' || !d.c) return null;
+  return d; // {o,h,l,c,v,t,s}
+}
+
+// ─── FETCH NEWS ──────────────────────────────────────────────────────────────
+async function fetchNews(sym) {
+  // Use company news for stocks, general market news for others
+  const today = new Date();
+  const from  = new Date(today - 7*24*3600*1000).toISOString().split('T')[0];
+  const to    = today.toISOString().split('T')[0];
+  let d;
+  if(sym.startsWith('BINANCE:') || sym.startsWith('OANDA:')) {
+    // General market news
+    d = await fh('news', {category:'general'});
+  } else {
+    // Resolve to plain symbol
+    const plain = sym.replace('IDX:','');
+    d = await fh('company-news', {symbol:plain, from, to});
+  }
+  return Array.isArray(d) ? d.slice(0,15) : [];
+}
+
+// ─── RENDER WATCHLIST ─────────────────────────────────────────────────────────
+function visibleList() {
+  return tab==='all' ? WL : WL.filter(w=>w.cat===tab);
+}
+function renderWL() {
+  const list = visibleList();
+  document.getElementById('wlCount').textContent = list.length+' symbols';
+  document.getElementById('watchlist').innerHTML = list.map(w=>{
+    const q = cache[w.sym];
+    const p = q ? fmtP(q.c, isIDR(w.sym)) : '…';
+    const chg = q ? q.dp : null;
+    const cls = chg==null?'nt':(chg>=0?'up':'dn');
+    const pctTxt = chg!=null ? (chg>=0?'+':'')+chg.toFixed(2)+'%' : '…';
+    return `<div class="wl-item${selectedSym===w.sym?' sel':''}" onclick="selectSym('${w.sym}')">
+      <div><div class="wl-sym">${w.label}</div><div class="wl-name">${w.name}</div></div>
+      <div></div>
+      <div><div class="wl-price">${p}</div><div class="wl-pct ${cls}">${pctTxt}</div></div>
+    </div>`;
+  }).join('');
+}
+
+// ─── RENDER TICKER ────────────────────────────────────────────────────────────
+function renderTicker() {
+  const items = [...WL, ...WL];
+  const html = items.map(w=>{
+    const q = cache[w.sym];
+    const p = q ? fmtP(q.c, isIDR(w.sym)) : '…';
+    const chg = q?.dp;
+    const cls = chg==null?'nt':(chg>=0?'up':'dn');
+    const arrow = chg==null?'●':(chg>=0?'▲':'▼');
+    const pct = chg!=null ? Math.abs(chg).toFixed(2)+'%' : '';
+    return `<div class="tick-item" onclick="selectSym('${w.sym}')">
+      <span class="tick-sym">${w.label}</span>
+      <span style="color:var(--text)">${p}</span>
+      <span class="${cls}">${arrow}${pct}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('tickerInner').innerHTML = html;
+}
+
+// ─── SELECT SYMBOL ────────────────────────────────────────────────────────────
+async function selectSym(sym) {
+  selectedSym = sym;
+  const entry = WL.find(w=>w.sym===sym);
+  const q = cache[sym];
+  const idr = isIDR(sym);
+
+  document.getElementById('csym').textContent  = entry?.label || sym;
+  document.getElementById('cname').textContent = (entry?.name || sym).toUpperCase();
+
+  if(q) {
+    document.getElementById('cprice').textContent = fmtP(q.c, idr);
+    const chgEl = document.getElementById('cchg');
+    const d = q.d, dp = q.dp;
+    chgEl.textContent = `${d>=0?'+':''}${fmtP(d,idr)} (${dp>=0?'+':''}${dp?.toFixed(2)}%)`;
+    chgEl.className = 'cchg '+(d>=0?'up':'dn');
+    document.getElementById('cmeta').innerHTML =
+      `OPEN: ${fmtP(q.o,idr)} &nbsp; PREV: ${fmtP(q.pc,idr)}<br>` +
+      `HI: ${fmtP(q.h,idr)} &nbsp; LO: ${fmtP(q.l,idr)}<br>` +
+      `Updated: ${timeAgo(q.t)}`;
+    document.getElementById('obSym').textContent = entry?.label||sym;
+    renderOB(q.c, idr);
+  }
+  renderWL();
+  renderChart(sym);
+  // Fetch news for this symbol
+  fetchNews(sym).then(renderNews);
+}
+
+// ─── RENDER CHART ─────────────────────────────────────────────────────────────
+async function renderChart(sym) {
+  document.getElementById('chartStatus').textContent = 'Loading…';
+  const data = await fetchCandles(sym, tfDays, tfRes);
+  document.getElementById('chartStatus').textContent = data ? 'Finnhub Live' : 'No data';
+
+  const canvas = document.getElementById('mainChart');
+  canvas.width  = canvas.parentElement.clientWidth  - 8;
+  canvas.height = canvas.parentElement.clientHeight - 8;
+  if(chart){chart.destroy();chart=null;}
+
+  if(!data) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='#4a5a78';ctx.font='11px IBM Plex Mono';ctx.textAlign='center';
+    ctx.fillText('No chart data available for this symbol', canvas.width/2, canvas.height/2);
+    return;
+  }
+
+  const q = cache[sym];
+  const isUp = (q?.dp||0) >= 0;
+  const idr  = isIDR(sym);
+  const labels = data.t.map(t=>{
+    const d = new Date(t*1000);
+    return tfRes==='D'
+      ? d.toLocaleDateString('id-ID',{month:'short',day:'numeric'})
+      : d.toLocaleDateString('id-ID',{month:'short',year:'2-digit'});
+  });
+
+  chart = new Chart(canvas.getContext('2d'), {
+    type:'line',
+    data:{labels, datasets:[{
+      data: data.c.map(v=>v!=null?parseFloat(v.toFixed(idr?0:4)):null),
+      borderColor: isUp?'#00d4a0':'#ff4a6e',
+      borderWidth: 1.5,
+      fill: true,
+      backgroundColor: isUp?'rgba(0,212,160,0.06)':'rgba(255,74,110,0.06)',
+      pointRadius: 0,
+      tension: 0.2,
+      spanGaps: true,
+    }]},
+    options:{
+      responsive:false, animation:{duration:400},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#0f1218',borderColor:'#263040',borderWidth:1,
+          titleColor:'#f5a623',bodyColor:'#c8d4e8',
+          callbacks:{label:ctx=>' '+fmtP(ctx.parsed.y, idr)}
+        }
+      },
+      scales:{
+        x:{display:true,grid:{color:'#1a2030'},ticks:{color:'#4a5a78',font:{family:'IBM Plex Mono',size:8},maxTicksLimit:9,maxRotation:0},border:{display:false}},
+        y:{position:'right',grid:{color:'#1a2030'},ticks:{color:'#4a5a78',font:{family:'IBM Plex Mono',size:9},maxTicksLimit:6,callback:v=>idr?v.toLocaleString('id-ID'):v>=1000?v.toFixed(0):v.toFixed(2)},border:{display:false}}
+      },
+      interaction:{mode:'index',intersect:false}
+    }
+  });
+}
+
+// ─── RENDER NEWS ──────────────────────────────────────────────────────────────
+const KBULL   = ['surge','rally','beat','record','gain','profit','strong','bullish','rise','up'];
+const KBEAR   = ['fall','drop','loss','decline','bearish','weak','cut','warn','risk','down'];
+const KECON   = ['fed','rate','inflation','gdp','cpi','central bank','bi rate','economy','fomc'];
+const KCRYPTO = ['bitcoin','ethereum','crypto','blockchain','defi','token','web3'];
+function classifyNews(t='') {
+  const s = t.toLowerCase();
+  if(KCRYPTO.some(k=>s.includes(k))) return {tag:'CRYPTO', cls:'t-crypto'};
+  if(KECON.some(k=>s.includes(k)))   return {tag:'ECON',   cls:'t-econ'};
+  if(KBEAR.some(k=>s.includes(k)))   return {tag:'BEAR',   cls:'t-bear'};
+  if(KBULL.some(k=>s.includes(k)))   return {tag:'BULL',   cls:'t-bull'};
+  return {tag:'CORP', cls:'t-corp'};
+}
+function renderNews(items) {
+  const el = document.getElementById('newsFeed');
+  if(!items||!items.length){
+    el.innerHTML='<div style="padding:20px;color:var(--text3);text-align:center;font-size:10px">No news available</div>';
+    return;
+  }
+  el.innerHTML = items.map(n=>{
+    const {tag,cls} = classifyNews(n.headline||n.summary||'');
+    const ago = timeAgo(n.datetime);
+    return `<div class="news-item" onclick="window.open('${n.url||'#'}','_blank')">
+      <div class="ntime">${ago}${n.source?' · '+n.source:''}</div>
+      <span class="ntag ${cls}">${tag}</span>
+      <div class="nhead">${n.headline||n.summary||'—'}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── RENDER INDICES ───────────────────────────────────────────────────────────
+function renderIndices() {
+  const rows = INDICES.map(idx=>{
+    const q = cache[idx.sym];
+    if(!q||!q.c) return `<tr><td>${idx.name}</td><td colspan="3" class="nt spin">…</td></tr>`;
+    const cls = q.dp>=0?'up':'dn';
+    return `<tr>
+      <td>${idx.name}</td>
+      <td style="color:var(--text)">${fmtP(q.c, isIDR(idx.sym))}</td>
+      <td class="${cls}">${q.d>=0?'+':''}${fmtP(q.d,false)}</td>
+      <td class="${cls}">${q.dp>=0?'+':''}${q.dp?.toFixed(2)}%</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('idxTable').innerHTML = rows;
+  document.getElementById('idxTime').textContent = new Date().toLocaleTimeString('id-ID');
+}
+
+// ─── ORDER BOOK (simulated around live mid) ───────────────────────────────────
+function renderOB(mid, idr) {
+  if(!mid) return;
+  const spr = idr ? Math.max(1,Math.round(mid*0.0002)) : parseFloat((mid*0.0003).toFixed(idr?0:mid>100?2:4));
+  const asks=[],bids=[];
+  for(let i=0;i<5;i++){
+    const p = idr ? Math.round(mid+(5-i)*spr) : parseFloat((mid+(5-i)*spr).toFixed(mid>100?2:4));
+    const sz = Math.floor(Math.random()*800+100);
+    asks.push({p,sz});
+  }
+  for(let i=0;i<5;i++){
+    const p = idr ? Math.round(mid-i*spr) : parseFloat((mid-i*spr).toFixed(mid>100?2:4));
+    const sz = Math.floor(Math.random()*800+100);
+    bids.push({p,sz});
+  }
+  const maxSz = Math.max(...asks.map(x=>x.sz),...bids.map(x=>x.sz));
+  const fmtOBP = p => idr ? p.toLocaleString('id-ID') : p;
+  document.getElementById('obMid').textContent = fmtP(mid,idr);
+  document.getElementById('obSpr').textContent = 'SPR '+spr;
+  document.getElementById('obAsks').innerHTML = asks.map(a=>`
+    <div class="ob-row ask">
+      <div class="ob-bar" style="width:${(a.sz/maxSz*70)|0}%"></div>
+      <span style="color:var(--text2);position:relative">${a.sz}</span>
+      <span style="text-align:right;color:var(--red);position:relative">${fmtOBP(a.p)}</span>
+      <span style="text-align:right;color:var(--text3);position:relative">${fmtNum(a.sz*a.p,0)}</span>
+    </div>`).join('');
+  document.getElementById('obBids').innerHTML = bids.map(b=>`
+    <div class="ob-row bid">
+      <div class="ob-bar" style="width:${(b.sz/maxSz*70)|0}%"></div>
+      <span style="color:var(--text2);position:relative">${b.sz}</span>
+      <span style="text-align:right;color:var(--green);position:relative">${fmtOBP(b.p)}</span>
+      <span style="text-align:right;color:var(--text3);position:relative">${fmtNum(b.sz*b.p,0)}</span>
+    </div>`).join('');
+}
+
+// ─── ECON CALENDAR ────────────────────────────────────────────────────────────
+function renderEcon() {
+  const days = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  const today = days[new Date().getDay()];
+  document.getElementById('econCal').innerHTML = ECON.map(e=>{
+    const isToday = e.day===today;
+    const iCls = {high:'up',med:'nt imp-med',low:'nt'}[e.imp];
+    return `<div style="padding:5px 10px;border-bottom:1px solid var(--border);${isToday?'border-left:2px solid var(--orange);padding-left:8px':''}">
+      <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+        <span style="color:${isToday?'var(--orange)':'var(--text3)'};font-size:9px;font-weight:${isToday?600:400}">${e.day}</span>
+        <span class="${e.imp==='high'?'up':e.imp==='med'?'nt':''}" style="font-size:8px;font-weight:600;letter-spacing:.5px">${e.imp.toUpperCase()}</span>
+      </div>
+      <div style="color:var(--text);font-family:var(--sans);font-size:10px;margin-bottom:2px">${e.event}</div>
+      <div style="display:flex;gap:10px;font-size:9px;color:var(--text3)">
+        <span>PREV: <span style="color:var(--text)">${e.prev}</span></span>
+        <span>FORE: <span style="color:var(--cyan)">${e.fore}</span></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── TIMEFRAME ────────────────────────────────────────────────────────────────
+function setTF(btn, days, res) {
+  document.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  tfDays=days; tfRes=res;
+  if(selectedSym) renderChart(selectedSym);
+}
+
+// ─── TAB ─────────────────────────────────────────────────────────────────────
+function setTab(el, t) {
+  document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+  tab=t; renderWL();
+}
+
+// ─── CMD ─────────────────────────────────────────────────────────────────────
+function handleCmd(e) {
+  if(e.key==='Enter') {
+    let v = e.target.value.trim().toUpperCase();
+    if(!v) return;
+    // Find in watchlist first
+    let found = WL.find(w=>w.label===v||w.sym===v||w.sym==='IDX:'+v);
+    if(found) {
+      selectSym(found.sym);
+      toast('Loading '+found.label+'...');
+    } else {
+      // Try as raw US stock symbol
+      const raw = {sym:v, label:v, name:v, cat:'us', type:'stock'};
+      toast('Searching '+v+'...');
+      fetchQuote(v).then(q=>{
+        if(q&&q.c) { WL.unshift(raw); renderWL(); selectSym(v); }
+        else toast('Symbol "'+v+'" not found');
+      });
+    }
+    e.target.value='';
+  }
+  if(e.key==='Escape') e.target.value='';
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function toast(msg) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+// ─── CLOCK ────────────────────────────────────────────────────────────────────
+function tick() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Asia/Jakarta'})+' WIB';
+}
+
+// ─── INITIAL LOAD ─────────────────────────────────────────────────────────────
+async function init() {
+  renderEcon();
+  tick(); setInterval(tick, 1000);
+
+  // Load general market news immediately
+  fh('news',{category:'general'}).then(d=>renderNews(Array.isArray(d)?d.slice(0,12):[]));
+
+  // Fetch all quotes
+  await fetchAllQuotes();
+
+  renderWL();
+  renderTicker();
+  renderIndices();
+
+  document.getElementById('liveLabel').textContent = 'LIVE';
+  document.getElementById('liveLabel').style.color = 'var(--green)';
+
+  // Auto-select first US stock
+  const first = WL.find(w=>cache[w.sym]?.c);
+  if(first) await selectSym(first.sym);
+
+  // Refresh every 30s
+  setInterval(async()=>{
+    await fetchAllQuotes();
+    renderWL(); renderTicker(); renderIndices();
+    if(selectedSym && cache[selectedSym]) {
+      const q=cache[selectedSym];
+      document.getElementById('cprice').textContent = fmtP(q.c,isIDR(selectedSym));
+      const chgEl=document.getElementById('cchg');
+      chgEl.textContent=`${q.d>=0?'+':''}${fmtP(q.d,isIDR(selectedSym))} (${q.dp>=0?'+':''}${q.dp?.toFixed(2)}%)`;
+      chgEl.className='cchg '+(q.d>=0?'up':'dn');
+      renderOB(q.c,isIDR(selectedSym));
+    }
+  }, 30000);
+
+  // Refresh chart every 5min
+  setInterval(()=>{ if(selectedSym) renderChart(selectedSym); }, 300000);
+}
+
+init().catch(e=>{
+  console.error(e);
+  document.getElementById('liveLabel').textContent='ERROR';
+  document.getElementById('liveLabel').style.color='var(--red)';
+  toast('Connection error — check console');
+});
+</script>
+</body>
+</html>
