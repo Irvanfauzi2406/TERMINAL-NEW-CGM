@@ -19,10 +19,10 @@
   --blue:#4a9eff;--cyan:#00c8e8;--purple:#a855f7;
   --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
 }
-html,body{height:100%;min-height:100vh;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:11px;overflow:hidden}
+html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:11px;overflow:hidden}
 
 /* ── WRAP */
-.wrap{display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--bg)}
+.wrap{display:flex;flex-direction:column;height:100dvh;overflow:hidden;background:var(--bg)}
 
 /* ── TOPBAR */
 .topbar{height:40px;flex-shrink:0;background:var(--bg2);border-bottom:2px solid var(--orange);display:flex;align-items:center;justify-content:space-between;padding:0 12px}
@@ -48,7 +48,7 @@ html,body{height:100%;min-height:100vh;background:var(--bg);color:var(--text);fo
 
 /* ── MAIN GRID: flex:1 fills remaining space */
 .main{
-  height:calc(100vh - 94px);
+  height:calc(100dvh - 94px);
   overflow:hidden;
   display:grid;
   grid-template-columns:190px 1fr 190px;
