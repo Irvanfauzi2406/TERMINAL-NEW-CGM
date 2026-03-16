@@ -22,10 +22,10 @@
 html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:11px;overflow:hidden}
 
 /* ── WRAP */
-.wrap{display:flex;flex-direction:column;height:100dvh;overflow:hidden;background:var(--bg)}
+.wrap{display:flex;flex-direction:column;height:100dvh;overflow:hidden;background:var(--bg);position:fixed;top:0;left:0;right:200px;bottom:0}
 
 /* ── TOPBAR */
-.topbar{height:40px;flex-shrink:0;background:var(--bg2);border-bottom:2px solid var(--orange);display:flex;align-items:center;justify-content:space-between;padding:0 12px}
+.topbar{height:40px;flex-shrink:0;background:var(--bg2);border-bottom:2px solid var(--orange);display:flex;align-items:center;justify-content:space-between;padding:0 12px;margin-right:0}
 .brand-wrap{display:flex;flex-direction:column;justify-content:center;margin-right:4px}
 .brand{color:var(--orange);font-weight:700;font-size:13px;letter-spacing:2.5px;line-height:1.1;white-space:nowrap}
 .brand-sub{color:var(--text3);font-size:7px;letter-spacing:1px;font-family:var(--sans);font-weight:400;white-space:nowrap}
@@ -52,7 +52,7 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
   overflow:hidden;
   display:grid;
   grid-template-columns:190px 1fr 190px;
-  grid-template-rows:1fr 205px 120px;
+  grid-template-rows:1fr 205px;
   gap:1px;background:var(--border);
   flex-shrink:0;
 }
@@ -127,13 +127,13 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
 .oi-bar-wrap{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px;overflow:hidden}
 
 /* ── WHALE TRACKER */
-.whale-row{grid-column:1/-1;grid-row:3;background:var(--bg);border-top:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden;height:120px;max-height:120px}
-.whale-stats{flex-shrink:0;height:24px;display:flex;align-items:center;gap:12px;padding:0 10px;font-size:9px;background:var(--bg2);border-bottom:1px solid var(--border)}
-.whale-feed{flex:1;min-height:0;max-height:96px;display:flex;overflow-x:auto;overflow-y:hidden;align-items:start;scrollbar-width:none}
+.whale-row{position:fixed;right:0;top:64px;bottom:30px;width:200px;background:var(--bg2);border-left:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden;z-index:50}
+.whale-stats{flex-shrink:0;background:var(--bg3);border-bottom:1px solid var(--border2);padding:6px 10px;display:flex;flex-direction:column;gap:3px}
+.whale-feed{flex:1;min-height:0;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;scrollbar-width:thin}
 .whale-feed::-webkit-scrollbar{display:none}
-.whale-item{flex-shrink:0;width:180px;height:96px;border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;padding:5px 10px;gap:2px;transition:background .2s;position:relative;overflow:hidden}
-.whale-item.buy{border-top:2px solid var(--green)}
-.whale-item.sell{border-top:2px solid var(--red)}
+.whale-item{flex-shrink:0;width:100%;border-bottom:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;padding:6px 10px;gap:3px;transition:background .2s;position:relative;overflow:hidden}
+.whale-item.buy{border-left:3px solid var(--green)}
+.whale-item.sell{border-left:3px solid var(--red)}
 .whale-item.mega{animation:whalePulse .8s ease-out}
 @keyframes whalePulse{0%{background:rgba(245,166,35,.18)}100%{background:transparent}}
 .whale-flash{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .3s}
@@ -169,7 +169,7 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
 #dominancePanel svg text{font-family:'IBM Plex Mono',monospace}
 
 /* ── OVERLAYS */
-.view-overlay{display:none;position:fixed;top:64px;left:0;right:0;bottom:30px;background:var(--bg);z-index:100;flex-direction:column}
+.view-overlay{display:none;position:fixed;top:64px;left:0;right:200px;bottom:30px;background:var(--bg);z-index:100;flex-direction:column}
 
 /* ── HEATMAP */
 #heatmapGrid{flex:1;overflow-y:auto;padding:8px;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start}
@@ -407,16 +407,19 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
   <!-- WHALE TRACKER ROW -->
   <div class="whale-row">
     <div class="whale-stats">
-      <span style="color:var(--orange);font-weight:600;font-size:9px;letter-spacing:1px;margin-right:4px">
-        🐋 WHALE TRACKER
-      </span>
-      <span class="ws-dot" id="wsDot"></span>
-      <span id="wsStatus" style="color:var(--text3);font-size:9px">Connecting...</span>
-      <span style="margin-left:8px" class="wstat">24H BUY VOL: <span id="wTotalBuy" class="up">$0</span></span>
-      <span class="wstat">24H SELL VOL: <span id="wTotalSell" class="dn">$0</span></span>
-      <span class="wstat">TRADES: <span id="wTradeCount" style="color:var(--text)">0</span></span>
-      <span class="wstat">LARGEST: <span id="wLargest" style="color:var(--orange)">—</span></span>
-      <span style="margin-left:auto;font-size:8px;color:var(--text3)">THRESHOLD: &gt;$100K · Binance WebSocket Live</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="color:var(--orange);font-weight:600;font-size:10px;letter-spacing:1px">🐋 WHALE</span>
+        <span class="ws-dot" id="wsDot"></span>
+        <span id="wsStatus" style="color:var(--text3);font-size:8px">Connecting...</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:8px">
+        <span class="wstat">BUY: <span id="wTotalBuy" class="up">$0</span></span>
+        <span class="wstat">SELL: <span id="wTotalSell" class="dn">$0</span></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:8px">
+        <span class="wstat">TRADES: <span id="wTradeCount" style="color:var(--text)">0</span></span>
+        <span class="wstat">MAX: <span id="wLargest" style="color:var(--orange)">—</span></span>
+      </div>
     </div>
     <div class="whale-feed" id="whaleFeed">
       <div style="display:flex;align-items:center;padding:0 16px;color:var(--text3);font-size:9px;gap:8px">
@@ -549,7 +552,7 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
 
 <script>
 // ─── KEYS ─────────────────────────────────────────────────────────────────────
-const FH_KEY = 'd6r5v1pr01qgdhqd9jo0d6r5v1pr01qgdhqd9jog';
+const FH_KEY = ''; // Disabled — using CoinGecko instead
 const TD_KEY = '5cb91a751fc04995ab1e0f161c2aa02b';
 
 // ─── CACHE (declared early — used by STATIC_PRICES below)
@@ -648,13 +651,8 @@ let tab      = 'all';
 // Setup removed — key hardcoded
 
 // ─── FETCH HELPERS ────────────────────────────────────────────────────────────
-const fhGet = (path, p={}) => {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 5000);
-  return fetch(`https://finnhub.io/api/v1/${path}?${new URLSearchParams({...p, token:FH_KEY})}`, {signal: ctrl.signal})
-    .then(r => r.json())
-    .catch(() => null)
-    .finally(() => clearTimeout(timer));
+const fhGet = async (path, p={}) => {
+  return null; // Finnhub disabled — using CoinGecko + static data
 };
 
 const tdGet = (path, p={}) => {
@@ -2684,11 +2682,12 @@ function attachWhaleHandlers(ws, connTimeout, failCallback) {
     } catch(e) {}
   };
 
-  ws.onerror = () => {
+  ws.onerror = (e) => {
     if(connTimeout) clearTimeout(connTimeout);
     document.getElementById('wsDot').classList.remove('connected');
-    document.getElementById('wsStatus').textContent = 'Error — trying next...';
+    document.getElementById('wsStatus').textContent = 'WS Error';
     document.getElementById('wsStatus').style.color = 'var(--red)';
+    try { ws.close(); } catch(err) {}
   };
 
   ws.onclose = () => {
