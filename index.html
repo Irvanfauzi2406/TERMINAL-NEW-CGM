@@ -1805,7 +1805,7 @@ async function init(){
   setTimeout(connectWhaleWS, 500);
   setTimeout(connectPriceWS, 800); // Realtime crypto prices
   setTimeout(loadSentiment, 1000);
-  setTimeout(fetchHeatmapData, 2000); // Pre-fetch heatmap data on startup
+  // Heatmap data fetched on demand when tab is opened
   setTimeout(() => {
     fhGet('news',{category:'general'})
       .then(d => renderNews(Array.isArray(d) ? d.slice(0,12) : []))
@@ -2560,21 +2560,11 @@ function connectPriceWS() {
     } catch(e) {}
   };
 
-  priceWS.onclose = () => { setTimeout(connectPriceWS, 3000); };
+  priceWS.onclose = () => { setTimeout(connectPriceWS, 5000); }; // 5s delay
   priceWS.onerror = () => { try { priceWS.close(); } catch(e){} };
 }
 
-// Update watchlist ticker from cache every 2 seconds
-setInterval(() => {
-  renderWL();
-  renderTicker();
-  // Update LIVE label when we have real data
-  const hasLive = WL.some(w => qCache[w.sym] && !qCache[w.sym]._static);
-  if(hasLive) {
-    document.getElementById('liveLabel').textContent = 'LIVE';
-    document.getElementById('liveLabel').style.color = 'var(--green)';
-  }
-}, 2000);
+// 2s interval removed — was causing performance issues
 
 function connectWhaleWS() {
   if(whaleWS) { try { whaleWS.close(); } catch(e){} }
