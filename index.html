@@ -1368,7 +1368,7 @@ let heatData = {};
 async function fetchHeatmapData() {
   const ids = HEAT_COINS.map(c => c.id).join(',');
   
-  // Try CoinGecko markets endpoint
+  // Try CoinGecko markets endpoint (full data with mcap, volume)
   try {
     const r = await fetch(
       `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=50&sparkline=false&price_change_percentage=24h`,
@@ -1378,8 +1378,34 @@ async function fetchHeatmapData() {
       const d = await r.json();
       if(Array.isArray(d) && d.length) {
         d.forEach(coin => { heatData[coin.id] = coin; });
-        return; // success
+        if(currentView === 'heatmap') renderHeatmap();
+        return;
       }
+    }
+  } catch(e) {}
+
+  // Try simple/price as fallback (lighter endpoint)
+  try {
+    const r2 = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`,
+      {signal: AbortSignal.timeout(8000)}
+    );
+    if(r2.ok) {
+      const d2 = await r2.json();
+      HEAT_COINS.forEach(c => {
+        if(d2[c.id]?.usd) {
+          const p = d2[c.id].usd, chg = d2[c.id].usd_24h_change||0;
+          heatData[c.id] = {
+            id:c.id, symbol:c.sym.toLowerCase(), name:c.name,
+            current_price: p,
+            price_change_percentage_24h: chg,
+            total_volume: d2[c.id].usd_24h_vol||0,
+            market_cap: d2[c.id].usd_market_cap||p*1e8,
+          };
+        }
+      });
+      if(currentView === 'heatmap') renderHeatmap();
+      return;
     }
   } catch(e) {}
 
@@ -1779,6 +1805,7 @@ async function init(){
   setTimeout(connectWhaleWS, 500);
   setTimeout(connectPriceWS, 800); // Realtime crypto prices
   setTimeout(loadSentiment, 1000);
+  setTimeout(fetchHeatmapData, 2000); // Pre-fetch heatmap data on startup
   setTimeout(() => {
     fhGet('news',{category:'general'})
       .then(d => renderNews(Array.isArray(d) ? d.slice(0,12) : []))
