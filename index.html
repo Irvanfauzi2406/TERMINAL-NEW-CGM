@@ -173,7 +173,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap" style="position:relative">
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:16px">
     <div class="brand-wrap">
@@ -186,6 +186,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
       <div class="nav-tab" onclick="setTab(this,'idx')">IDX / BEI</div>
       <div class="nav-tab" onclick="setTab(this,'crypto')">CRYPTO</div>
       <div class="nav-tab" onclick="setTab(this,'fx')">FOREX</div>
+      <div class="nav-tab" onclick="switchView('heatmap')" id="tab-heatmap">HEATMAP</div>
+      <div class="nav-tab" onclick="switchView('alerts')" id="tab-alerts">🔔 ALERTS</div>
+      <div class="nav-tab" onclick="switchView('portfolio')" id="tab-portfolio">💼 PORTFOLIO</div>
     </div>
   </div>
   <div class="topbar-right">
@@ -371,6 +374,118 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
     </div>
   </div>
 
+<!-- HEATMAP OVERLAY -->
+<div id="view-heatmap" style="display:none;position:absolute;top:42px;left:0;right:0;bottom:0;background:var(--bg);z-index:100;flex-direction:column;overflow:hidden">
+  <div style="padding:8px 14px;background:var(--bg2);border-bottom:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <span style="color:var(--orange);font-size:10px;font-weight:600;letter-spacing:1.5px">CRYPTO MARKET HEATMAP</span>
+    <div style="display:flex;gap:8px;font-size:9px">
+      <button class="tf-btn active" onclick="setHeatSortBy(this,'change')">24H CHANGE</button>
+      <button class="tf-btn" onclick="setHeatSortBy(this,'volume')">VOLUME</button>
+      <button class="tf-btn" onclick="setHeatSortBy(this,'mcap')">MARKET CAP</button>
+      <button onclick="switchView(null)" style="background:none;border:1px solid var(--border2);color:var(--text3);padding:2px 10px;cursor:pointer;font-family:var(--mono);font-size:9px;border-radius:1px">✕ CLOSE</button>
+    </div>
+  </div>
+  <div id="heatmapGrid" style="flex:1;overflow-y:auto;padding:8px;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start"></div>
+</div>
+
+<!-- ALERTS OVERLAY -->
+<div id="view-alerts" style="display:none;position:absolute;top:42px;left:0;right:0;bottom:0;background:var(--bg);z-index:100;flex-direction:column">
+  <div style="padding:8px 14px;background:var(--bg2);border-bottom:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <span style="color:var(--orange);font-size:10px;font-weight:600;letter-spacing:1.5px">🔔 PRICE ALERTS</span>
+    <button onclick="switchView(null)" style="background:none;border:1px solid var(--border2);color:var(--text3);padding:2px 10px;cursor:pointer;font-family:var(--mono);font-size:9px;border-radius:1px">✕ CLOSE</button>
+  </div>
+  <div style="display:grid;grid-template-columns:380px 1fr;gap:1px;background:var(--border);flex:1;overflow:hidden">
+    <!-- Add Alert Form -->
+    <div style="background:var(--bg);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:10px;color:var(--orange);font-weight:600;letter-spacing:1px;margin-bottom:4px">NEW ALERT</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:9px;color:var(--text3)">SYMBOL</label>
+        <select id="alertSym" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:11px;padding:6px 8px;outline:none;border-radius:2px"></select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:9px;color:var(--text3)">CONDITION</label>
+        <select id="alertCond" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:11px;padding:6px 8px;outline:none;border-radius:2px">
+          <option value="above">Price ABOVE</option>
+          <option value="below">Price BELOW</option>
+          <option value="change_up">Change% UP by</option>
+          <option value="change_down">Change% DOWN by</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:9px;color:var(--text3)">TARGET VALUE</label>
+        <input id="alertVal" type="number" step="any" placeholder="e.g. 85000" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:12px;padding:6px 8px;outline:none;border-radius:2px;width:100%">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:9px;color:var(--text3)">NOTE (optional)</label>
+        <input id="alertNote" type="text" placeholder="e.g. BTC breakout level" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:11px;padding:6px 8px;outline:none;border-radius:2px;width:100%">
+      </div>
+      <button onclick="addAlert()" style="background:var(--orange);border:none;color:#000;font-family:var(--mono);font-size:11px;font-weight:700;padding:10px;cursor:pointer;border-radius:2px;letter-spacing:1px;margin-top:4px">+ ADD ALERT</button>
+      <div style="font-size:8px;color:var(--text3);line-height:1.6;margin-top:4px">
+        Alerts check every 30s · Browser notification required · Enable in browser settings
+      </div>
+    </div>
+    <!-- Active Alerts List -->
+    <div style="background:var(--bg);display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:8px 12px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:9px;color:var(--text3);display:flex;justify-content:space-between">
+        <span>ACTIVE ALERTS</span>
+        <span id="alertCount" style="color:var(--orange)">0 alerts</span>
+      </div>
+      <div id="alertsList" style="flex:1;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PORTFOLIO OVERLAY -->
+<div id="view-portfolio" style="display:none;position:absolute;top:42px;left:0;right:0;bottom:0;background:var(--bg);z-index:100;flex-direction:column">
+  <div style="padding:8px 14px;background:var(--bg2);border-bottom:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <span style="color:var(--orange);font-size:10px;font-weight:600;letter-spacing:1.5px">💼 PORTFOLIO TRACKER</span>
+    <button onclick="switchView(null)" style="background:none;border:1px solid var(--border2);color:var(--text3);padding:2px 10px;cursor:pointer;font-family:var(--mono);font-size:9px;border-radius:1px">✕ CLOSE</button>
+  </div>
+  <div style="display:grid;grid-template-columns:380px 1fr;gap:1px;background:var(--border);flex:1;overflow:hidden">
+    <!-- Add Position Form -->
+    <div style="background:var(--bg);padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto">
+      <div style="font-size:10px;color:var(--orange);font-weight:600;letter-spacing:1px;margin-bottom:4px">ADD POSITION</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:9px;color:var(--text3)">SYMBOL</label>
+        <select id="portSym" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:11px;padding:6px 8px;outline:none;border-radius:2px"></select>
+      </div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:9px;color:var(--text3)">BUY PRICE</label>
+          <input id="portBuy" type="number" step="any" placeholder="0.00" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:12px;padding:6px 8px;outline:none;border-radius:2px;width:100%">
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:9px;color:var(--text3)">QUANTITY</label>
+          <input id="portQty" type="number" step="any" placeholder="0.00" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:12px;padding:6px 8px;outline:none;border-radius:2px;width:100%">
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:9px;color:var(--text3)">LABEL (optional)</label>
+        <input id="portLabel" type="text" placeholder="e.g. Long term hold" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:11px;padding:6px 8px;outline:none;border-radius:2px;width:100%">
+      </div>
+      <button onclick="addPosition()" style="background:var(--green);border:none;color:#000;font-family:var(--mono);font-size:11px;font-weight:700;padding:10px;cursor:pointer;border-radius:2px;letter-spacing:1px">+ ADD POSITION</button>
+      <!-- Portfolio Summary -->
+      <div style="margin-top:8px;padding:12px;background:var(--bg3);border-radius:2px;border:1px solid var(--border2)">
+        <div style="font-size:9px;color:var(--text3);margin-bottom:8px;letter-spacing:1px">TOTAL PORTFOLIO</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><div style="font-size:8px;color:var(--text3)">INVESTED</div><div id="portInvested" style="font-size:14px;font-weight:600;font-family:var(--mono);color:var(--text)">$0</div></div>
+          <div><div style="font-size:8px;color:var(--text3)">CURRENT</div><div id="portCurrent" style="font-size:14px;font-weight:600;font-family:var(--mono);color:var(--text)">$0</div></div>
+          <div><div style="font-size:8px;color:var(--text3)">P&L</div><div id="portPnL" style="font-size:14px;font-weight:600;font-family:var(--mono)">$0</div></div>
+          <div><div style="font-size:8px;color:var(--text3)">RETURN</div><div id="portReturn" style="font-size:14px;font-weight:600;font-family:var(--mono)">0%</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- Positions List -->
+    <div style="background:var(--bg);display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:8px 12px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:9px;color:var(--text3);display:flex;justify-content:space-between">
+        <span>POSITIONS</span>
+        <span id="posCount" style="color:var(--green)">0 positions</span>
+      </div>
+      <div id="positionsList" style="flex:1;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
 </div>
 <div class="cmdbar">
   <span class="cmd-prompt">▶</span>
@@ -494,7 +609,10 @@ const fhGet = (path, p={}) => {
 const tdGet = (path, p={}) => {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);
-  return fetch(`https://api.twelvedata.com/${path}?${new URLSearchParams({...p, apikey:TD_KEY})}`, {signal: ctrl.signal})
+  // Route through Vercel Edge proxy — caches 15min, shared across all users
+  // This prevents TD rate limit from being hit even with 50 concurrent users
+  const proxyUrl = `/api/chart?${new URLSearchParams(p)}`;
+  return fetch(proxyUrl, {signal: ctrl.signal})
     .then(r => r.json())
     .catch(() => null)
     .finally(() => clearTimeout(timer));
@@ -1212,6 +1330,8 @@ async function init(){
   setInterval(async()=>{
     await fetchAllQuotes();
     renderWL(); renderTicker();
+    checkAlerts();
+    if(currentView === 'portfolio') renderPortfolio();
     // Update indices less frequently (every 2 refreshes)
     if(!window._idxRefreshToggle) renderIndices();
     window._idxRefreshToggle = !window._idxRefreshToggle;
@@ -1228,6 +1348,7 @@ async function init(){
   // Refresh chart tiap 10 menit (hemat API credit)
   setInterval(()=>{
     if(selected){ chCache={}; renderChart(selected); }
+    if(currentView==='heatmap') { heatData={}; renderHeatmap(); }
   },900000); // 15 min refresh
 
   // Refresh sentiment every 60s
@@ -2162,6 +2283,399 @@ setInterval(() => {
     // Update time element - lightweight, just the text
   });
 }, 10000);
+
+
+
+// ═══════════════════════════════════════════════════════
+// VIEW SWITCHER
+// ═══════════════════════════════════════════════════════
+let currentView = null;
+
+function switchView(view) {
+  // Hide all overlays
+  ['heatmap','alerts','portfolio'].forEach(v => {
+    const el = document.getElementById('view-' + v);
+    if(el) el.style.display = 'none';
+    const tab = document.getElementById('tab-' + v);
+    if(tab) tab.classList.remove('active');
+  });
+
+  if(view) {
+    const el = document.getElementById('view-' + view);
+    if(el) el.style.display = 'flex';
+    const tab = document.getElementById('tab-' + view);
+    if(tab) tab.classList.add('active');
+    currentView = view;
+    if(view === 'heatmap') renderHeatmap();
+    if(view === 'alerts')  populateAlertSyms();
+    if(view === 'portfolio') { populatePortSyms(); renderPortfolio(); }
+  } else {
+    currentView = null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// MARKET HEATMAP
+// ═══════════════════════════════════════════════════════
+let heatSortBy = 'change';
+const HEAT_COINS = [
+  {id:'bitcoin',      sym:'BTC',  name:'Bitcoin'},
+  {id:'ethereum',     sym:'ETH',  name:'Ethereum'},
+  {id:'binancecoin',  sym:'BNB',  name:'BNB'},
+  {id:'solana',       sym:'SOL',  name:'Solana'},
+  {id:'ripple',       sym:'XRP',  name:'XRP'},
+  {id:'dogecoin',     sym:'DOGE', name:'Dogecoin'},
+  {id:'cardano',      sym:'ADA',  name:'Cardano'},
+  {id:'avalanche-2',  sym:'AVAX', name:'Avalanche'},
+  {id:'polkadot',     sym:'DOT',  name:'Polkadot'},
+  {id:'chainlink',    sym:'LINK', name:'Chainlink'},
+  {id:'uniswap',      sym:'UNI',  name:'Uniswap'},
+  {id:'litecoin',     sym:'LTC',  name:'Litecoin'},
+  {id:'stellar',      sym:'XLM',  name:'Stellar'},
+  {id:'toncoin',      sym:'TON',  name:'Toncoin'},
+  {id:'shiba-inu',    sym:'SHIB', name:'Shiba Inu'},
+  {id:'pepe',         sym:'PEPE', name:'Pepe'},
+  {id:'sui',          sym:'SUI',  name:'Sui'},
+  {id:'aptos',        sym:'APT',  name:'Aptos'},
+  {id:'near',         sym:'NEAR', name:'NEAR'},
+  {id:'internet-computer', sym:'ICP', name:'ICP'},
+  {id:'matic-network',    sym:'POL', name:'Polygon'},
+  {id:'arbitrum',     sym:'ARB',  name:'Arbitrum'},
+  {id:'optimism',     sym:'OP',   name:'Optimism'},
+  {id:'injective-protocol', sym:'INJ', name:'Injective'},
+];
+
+let heatData = {};
+
+async function fetchHeatmapData() {
+  const ids = HEAT_COINS.map(c => c.id).join(',');
+  try {
+    const r = await fetch(
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=50&sparkline=false&price_change_percentage=24h`,
+      {signal: AbortSignal.timeout(8000)}
+    );
+    const d = await r.json();
+    if(Array.isArray(d)) {
+      d.forEach(coin => { heatData[coin.id] = coin; });
+    }
+  } catch(e) { console.warn('Heatmap fetch failed', e); }
+}
+
+function setHeatSortBy(btn, by) {
+  document.querySelectorAll('#view-heatmap .tf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  heatSortBy = by;
+  renderHeatmap();
+}
+
+function heatColor(pct) {
+  if(pct >= 10)  return {bg:'rgba(0,212,160,0.9)',  text:'#002a1e'};
+  if(pct >= 5)   return {bg:'rgba(0,212,160,0.7)',  text:'#003328'};
+  if(pct >= 2)   return {bg:'rgba(0,212,160,0.45)', text:'#00d4a0'};
+  if(pct >= 0.5) return {bg:'rgba(0,212,160,0.25)', text:'#00d4a0'};
+  if(pct >= -0.5)return {bg:'rgba(50,60,80,0.8)',   text:'#8a9ab8'};
+  if(pct >= -2)  return {bg:'rgba(255,74,110,0.25)',text:'#ff4a6e'};
+  if(pct >= -5)  return {bg:'rgba(255,74,110,0.45)',text:'#ff4a6e'};
+  if(pct >= -10) return {bg:'rgba(255,74,110,0.7)', text:'#330010'};
+  return           {bg:'rgba(255,74,110,0.9)',  text:'#1a0008'};
+}
+
+async function renderHeatmap() {
+  const grid = document.getElementById('heatmapGrid');
+  if(!grid) return;
+  grid.innerHTML = '<div style="color:var(--text3);font-size:10px;padding:20px" class="spin">Loading market data...</div>';
+
+  if(!Object.keys(heatData).length) await fetchHeatmapData();
+  if(!Object.keys(heatData).length) {
+    grid.innerHTML = '<div style="color:var(--red);font-size:10px;padding:20px">Failed to load heatmap data</div>';
+    return;
+  }
+
+  let coins = HEAT_COINS.map(c => ({...c, data: heatData[c.id]})).filter(c => c.data);
+
+  // Sort
+  if(heatSortBy === 'change') coins.sort((a,b) => (b.data.price_change_percentage_24h||0) - (a.data.price_change_percentage_24h||0));
+  else if(heatSortBy === 'volume') coins.sort((a,b) => (b.data.total_volume||0) - (a.data.total_volume||0));
+  else if(heatSortBy === 'mcap') coins.sort((a,b) => (b.data.market_cap||0) - (a.data.market_cap||0));
+
+  // Size boxes by market cap (bigger mcap = bigger box)
+  const maxMcap = Math.max(...coins.map(c => c.data.market_cap || 1));
+
+  grid.innerHTML = coins.map(c => {
+    const d = c.data;
+    const pct = d.price_change_percentage_24h || 0;
+    const {bg, text} = heatColor(pct);
+    const mcapRatio = Math.sqrt((d.market_cap || 1) / maxMcap);
+    const size = Math.max(80, Math.min(200, Math.round(80 + mcapRatio * 180)));
+    const price = d.current_price >= 1000
+      ? '$' + d.current_price.toLocaleString(undefined, {maximumFractionDigits:0})
+      : '$' + d.current_price.toFixed(d.current_price < 0.01 ? 6 : d.current_price < 1 ? 4 : 2);
+    const vol = d.total_volume >= 1e9 ? '$'+(d.total_volume/1e9).toFixed(1)+'B'
+              : d.total_volume >= 1e6 ? '$'+(d.total_volume/1e6).toFixed(0)+'M' : '';
+    const signPct = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+
+    return `<div onclick="selectSym('${c.sym}/USD'); switchView(null);"
+      style="width:${size}px;height:${size}px;background:${bg};border-radius:4px;
+             display:flex;flex-direction:column;align-items:center;justify-content:center;
+             cursor:pointer;transition:opacity .15s;padding:6px;text-align:center;flex-shrink:0"
+      onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+      <div style="font-size:${size>120?14:11}px;font-weight:700;color:${text};font-family:var(--mono)">${c.sym}</div>
+      <div style="font-size:${size>120?11:9}px;color:${text};font-family:var(--mono);opacity:.9;margin:2px 0">${price}</div>
+      <div style="font-size:${size>120?13:11}px;font-weight:600;color:${text};font-family:var(--mono)">${signPct}</div>
+      ${size > 110 ? `<div style="font-size:8px;color:${text};opacity:.7;margin-top:2px">${vol}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// PRICE ALERTS
+// ═══════════════════════════════════════════════════════
+let alerts = JSON.parse(localStorage.getItem('cg_alerts') || '[]');
+let alertsTriggered = new Set();
+
+function populateAlertSyms() {
+  const sel = document.getElementById('alertSym');
+  if(!sel || sel.options.length > 1) return;
+  WL.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w.sym;
+    opt.textContent = w.label + ' — ' + w.name;
+    sel.appendChild(opt);
+  });
+}
+
+function addAlert() {
+  const sym   = document.getElementById('alertSym').value;
+  const cond  = document.getElementById('alertCond').value;
+  const val   = parseFloat(document.getElementById('alertVal').value);
+  const note  = document.getElementById('alertNote').value.trim();
+
+  if(!sym || isNaN(val) || val <= 0) { toast('Isi symbol dan target value!'); return; }
+
+  const entry = WL.find(w => w.sym === sym);
+  const curPrice = qCache[sym]?.c || 0;
+
+  alerts.push({
+    id: Date.now(),
+    sym, label: entry?.label || sym,
+    cond, val, note,
+    curPrice,
+    createdAt: Date.now(),
+    triggered: false,
+  });
+  saveAlerts();
+  renderAlerts();
+  document.getElementById('alertVal').value = '';
+  document.getElementById('alertNote').value = '';
+  toast('✅ Alert ditambahkan!');
+
+  // Request notification permission
+  if(Notification.permission === 'default') Notification.requestPermission();
+}
+
+function removeAlert(id) {
+  alerts = alerts.filter(a => a.id !== id);
+  saveAlerts();
+  renderAlerts();
+}
+
+function saveAlerts() {
+  localStorage.setItem('cg_alerts', JSON.stringify(alerts));
+  const cnt = document.getElementById('alertCount');
+  if(cnt) cnt.textContent = alerts.length + ' alert' + (alerts.length !== 1 ? 's' : '');
+}
+
+function renderAlerts() {
+  const el = document.getElementById('alertsList');
+  if(!el) return;
+  saveAlerts();
+  if(!alerts.length) {
+    el.innerHTML = '<div style="padding:24px;color:var(--text3);font-size:10px;text-align:center">No alerts set.<br>Add one on the left.</div>';
+    return;
+  }
+  el.innerHTML = alerts.map(a => {
+    const q = qCache[a.sym];
+    const cur = q?.c;
+    const condTxt = {above:'↑ Above', below:'↓ Below', change_up:'📈 Up%', change_down:'📉 Down%'}[a.cond] || a.cond;
+    const distPct = cur ? ((cur - a.val) / a.val * 100).toFixed(2) : null;
+    const statusColor = a.triggered ? 'var(--green)' : 'var(--text3)';
+    return `<div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;${a.triggered?'background:rgba(0,212,160,0.05)':''}">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+          <span style="color:var(--orange);font-weight:600;font-size:11px;font-family:var(--mono)">${a.label}</span>
+          <span style="font-size:9px;color:var(--text3)">${condTxt}</span>
+          <span style="font-size:11px;font-weight:600;color:var(--text);font-family:var(--mono)">${a.val.toLocaleString()}</span>
+          ${a.triggered ? '<span style="font-size:8px;background:rgba(0,212,160,0.15);color:var(--green);padding:1px 6px;border-radius:1px">TRIGGERED</span>' : ''}
+        </div>
+        <div style="font-size:9px;color:var(--text3);display:flex;gap:10px">
+          ${a.note ? `<span style="color:var(--text2)">${a.note}</span>` : ''}
+          ${cur ? `<span>Now: <span style="color:var(--text)">${cur.toLocaleString()}</span></span>` : ''}
+          ${distPct ? `<span>Dist: <span style="${parseFloat(distPct)>0?'color:var(--green)':'color:var(--red)'}">${distPct}%</span></span>` : ''}
+        </div>
+      </div>
+      <button onclick="removeAlert(${a.id})" style="background:none;border:1px solid var(--border2);color:var(--text3);padding:3px 8px;cursor:pointer;font-size:9px;font-family:var(--mono);border-radius:1px">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function checkAlerts() {
+  if(!alerts.length) return;
+  let anyTriggered = false;
+  alerts.forEach(a => {
+    if(a.triggered) return;
+    const q = qCache[a.sym];
+    if(!q?.c) return;
+    const price = q.c, chg = q.dp || 0;
+    let hit = false;
+    if(a.cond === 'above' && price >= a.val) hit = true;
+    if(a.cond === 'below' && price <= a.val) hit = true;
+    if(a.cond === 'change_up' && chg >= a.val) hit = true;
+    if(a.cond === 'change_down' && chg <= -a.val) hit = true;
+
+    if(hit && !alertsTriggered.has(a.id)) {
+      a.triggered = true;
+      alertsTriggered.add(a.id);
+      anyTriggered = true;
+
+      // Browser notification
+      const msg = `${a.label} ${a.cond === 'above' ? 'reached' : 'dropped to'} ${price.toLocaleString()}`;
+      if(Notification.permission === 'granted') {
+        new Notification('🚨 CryptoGem Alert', {
+          body: msg,
+          icon: 'https://api.coingecko.com/api/v3/coins/' + (WL.find(w=>w.sym===a.sym)?.cg||'bitcoin') + '/images',
+        });
+      }
+      // In-app flash notification
+      flashMegaAlert(a.label, price, a.cond === 'above' || a.cond === 'change_up');
+      toast(`🔔 ALERT: ${msg}`);
+    }
+  });
+  if(anyTriggered) { saveAlerts(); if(currentView === 'alerts') renderAlerts(); }
+}
+
+// ═══════════════════════════════════════════════════════
+// PORTFOLIO TRACKER
+// ═══════════════════════════════════════════════════════
+let positions = JSON.parse(localStorage.getItem('cg_portfolio') || '[]');
+
+function populatePortSyms() {
+  const sel = document.getElementById('portSym');
+  if(!sel || sel.options.length > 1) return;
+  WL.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w.sym;
+    opt.textContent = w.label + ' — ' + w.name;
+    sel.appendChild(opt);
+  });
+}
+
+function addPosition() {
+  const sym   = document.getElementById('portSym').value;
+  const buy   = parseFloat(document.getElementById('portBuy').value);
+  const qty   = parseFloat(document.getElementById('portQty').value);
+  const label = document.getElementById('portLabel').value.trim();
+
+  if(!sym || isNaN(buy) || buy <= 0 || isNaN(qty) || qty <= 0) {
+    toast('Isi semua field dengan benar!');
+    return;
+  }
+
+  const entry = WL.find(w => w.sym === sym);
+  positions.push({
+    id: Date.now(),
+    sym, label: entry?.label || sym,
+    name: entry?.name || sym,
+    buy, qty,
+    note: label,
+    addedAt: Date.now(),
+  });
+  savePortfolio();
+  renderPortfolio();
+  document.getElementById('portBuy').value = '';
+  document.getElementById('portQty').value = '';
+  document.getElementById('portLabel').value = '';
+  toast('✅ Posisi ditambahkan!');
+}
+
+function removePosition(id) {
+  positions = positions.filter(p => p.id !== id);
+  savePortfolio();
+  renderPortfolio();
+}
+
+function savePortfolio() {
+  localStorage.setItem('cg_portfolio', JSON.stringify(positions));
+  const cnt = document.getElementById('posCount');
+  if(cnt) cnt.textContent = positions.length + ' position' + (positions.length !== 1 ? 's' : '');
+}
+
+function renderPortfolio() {
+  const el = document.getElementById('positionsList');
+  if(!el) return;
+  savePortfolio();
+
+  if(!positions.length) {
+    el.innerHTML = '<div style="padding:24px;color:var(--text3);font-size:10px;text-align:center">No positions yet.<br>Add your first position on the left.</div>';
+    document.getElementById('portInvested').textContent = '$0';
+    document.getElementById('portCurrent').textContent  = '$0';
+    document.getElementById('portPnL').textContent      = '$0';
+    document.getElementById('portReturn').textContent   = '0.00%';
+    return;
+  }
+
+  let totalInvested = 0, totalCurrent = 0;
+
+  const rows = positions.map(p => {
+    const q = qCache[p.sym];
+    const curPrice = q?.c || p.buy;
+    const invested = p.buy * p.qty;
+    const current  = curPrice * p.qty;
+    const pnl      = current - invested;
+    const pnlPct   = (pnl / invested * 100);
+    const isUp     = pnl >= 0;
+
+    totalInvested += invested;
+    totalCurrent  += current;
+
+    const fmtUSD = v => v >= 1e6 ? '$'+(v/1e6).toFixed(2)+'M' : v >= 1e3 ? '$'+v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',') : '$'+v.toFixed(2);
+
+    return `<div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span style="color:var(--orange);font-weight:600;font-size:12px;font-family:var(--mono)">${p.label}</span>
+          ${p.note ? `<span style="color:var(--text3);font-size:9px">${p.note}</span>` : ''}
+          <span style="${isUp?'color:var(--green)':'color:var(--red)'};font-size:11px;font-weight:600;font-family:var(--mono);margin-left:auto">
+            ${isUp?'+':''}${fmtUSD(pnl)} (${isUp?'+':''}${pnlPct.toFixed(2)}%)
+          </span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;font-size:9px;color:var(--text3)">
+          <span>QTY: <span style="color:var(--text)">${p.qty}</span></span>
+          <span>BUY: <span style="color:var(--text)">$${p.buy.toLocaleString()}</span></span>
+          <span>NOW: <span style="color:var(--text)">$${curPrice.toLocaleString()}</span></span>
+          <span>VAL: <span style="color:var(--text)">${fmtUSD(current)}</span></span>
+        </div>
+      </div>
+      <button onclick="removePosition(${p.id})" style="background:none;border:1px solid var(--border2);color:var(--text3);padding:3px 8px;cursor:pointer;font-size:9px;font-family:var(--mono);border-radius:1px">✕</button>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = rows;
+
+  // Update summary
+  const totalPnL    = totalCurrent - totalInvested;
+  const totalReturn = totalInvested > 0 ? (totalPnL / totalInvested * 100) : 0;
+  const isUp        = totalPnL >= 0;
+  const fmtUSD = v => v >= 1e6 ? '$'+(v/1e6).toFixed(2)+'M' : '$'+Math.abs(v).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+
+  document.getElementById('portInvested').textContent = fmtUSD(totalInvested);
+  document.getElementById('portCurrent').textContent  = fmtUSD(totalCurrent);
+  const pnlEl = document.getElementById('portPnL');
+  pnlEl.textContent = (isUp?'+':'-') + fmtUSD(totalPnL);
+  pnlEl.style.color = isUp ? 'var(--green)' : 'var(--red)';
+  const retEl = document.getElementById('portReturn');
+  retEl.textContent = (isUp?'+':'') + totalReturn.toFixed(2) + '%';
+  retEl.style.color = isUp ? 'var(--green)' : 'var(--red)';
+}
 
 
 </script>
