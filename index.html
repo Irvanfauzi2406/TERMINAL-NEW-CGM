@@ -45,7 +45,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .tick-sym{color:var(--orange);font-weight:600}
 .up{color:var(--green)}.dn{color:var(--red)}.nt{color:var(--text3)}
 
-.main{display:grid;grid-template-columns:210px 1fr 210px;grid-template-rows:1fr 230px 130px;gap:1px;background:var(--border);flex:1;min-height:0}
+.main{display:grid;grid-template-columns:200px 1fr 200px;grid-template-rows:1fr 210px 160px;gap:1px;background:var(--border);flex:1;min-height:0}
 .panel{background:var(--bg);display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .ph{background:var(--bg2);border-bottom:1px solid var(--border2);padding:5px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .pt{color:var(--orange);font-size:10px;font-weight:600;letter-spacing:1.5px}
@@ -89,7 +89,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .t-crypto{background:rgba(168,85,247,.1);color:var(--purple);border:1px solid rgba(168,85,247,.2)}
 .nhead{color:var(--text);font-size:10px;line-height:1.45;font-family:var(--sans)}
 
-.bot{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:140px 280px 155px 1fr 220px;gap:1px;background:var(--border)}
+.bot{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:130px 240px 155px 1fr 195px;gap:1px;background:var(--border)}
 .mkt-table{width:100%;border-collapse:collapse;font-size:10px}
 .mkt-table th{padding:3px 8px;text-align:right;color:var(--text3);font-size:9px;font-weight:500;letter-spacing:.5px;border-bottom:1px solid var(--border)}
 .mkt-table th:first-child{text-align:left}
@@ -104,7 +104,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .ob-hdr{display:grid;grid-template-columns:1fr 80px 72px;padding:3px 10px;font-size:9px;color:var(--text3);border-bottom:1px solid var(--border2);letter-spacing:.5px}
 .ob-mid{padding:4px 10px;background:var(--bg3);border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center}
 
-.cmdbar{background:var(--bg2);border-top:2px solid var(--orange);padding:5px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.cmdbar{background:var(--bg2);border-top:2px solid var(--orange);padding:4px 12px;height:36px;display:flex;align-items:center;gap:8px;flex-shrink:0}
 .cmd-prompt{color:var(--orange);font-weight:600;font-size:12px}
 .cmd-input{flex:1;background:none;border:none;outline:none;color:var(--text);font-family:var(--mono);font-size:11px;caret-color:var(--orange)}
 .cmd-hint{color:var(--text3);font-size:9px}
@@ -130,8 +130,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 #mapTitle{position:absolute;top:5px;left:8px;font-size:9px;color:var(--orange);font-family:var(--mono);font-weight:600;letter-spacing:1px}
 
 /* SENTIMENT PANEL */
-.sent-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:var(--border);flex:1}
-.sent-cell{background:var(--bg);padding:7px 10px;display:flex;flex-direction:column;gap:4px;overflow:hidden;min-height:0}
+.sent-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:var(--border);flex:1;min-height:0;overflow:hidden}
+.sent-cell{background:var(--bg);padding:5px 8px;display:flex;flex-direction:column;gap:3px;overflow:hidden;min-height:0}
 .sent-title{font-size:8px;color:var(--text3);letter-spacing:1px;font-weight:600;flex-shrink:0}
 .fng-arc{transition:stroke-dashoffset .8s cubic-bezier(.4,0,.2,1)}
 .sent-val{font-size:18px;font-weight:600;font-family:var(--mono);line-height:1}
@@ -143,10 +143,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .oi-bar-wrap{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px;overflow:hidden}
 
 /* ── WHALE TRACKER ─────────────────────────────────────── */
-.whale-row{grid-column:1/-1;grid-row:3;background:var(--bg);border-top:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden}
+.whale-row{grid-column:1/-1;grid-row:3;background:var(--bg);border-top:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .whale-feed{display:flex;gap:0;overflow-x:auto;overflow-y:hidden;flex:1;align-items:stretch;scrollbar-width:none}
 .whale-feed::-webkit-scrollbar{display:none}
-.whale-item{flex-shrink:0;width:200px;border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;padding:6px 10px;gap:2px;transition:background .3s;position:relative;overflow:hidden}
+.whale-item{flex-shrink:0;width:185px;border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;padding:7px 10px;gap:3px;transition:background .3s;position:relative;overflow:hidden}
 .whale-item.buy{border-top:2px solid var(--green)}
 .whale-item.sell{border-top:2px solid var(--red)}
 .whale-item.mega{animation:whalePulse .8s ease-out}
@@ -163,7 +163,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .badge-mega{background:rgba(245,166,35,.15);color:var(--orange);border:1px solid rgba(245,166,35,.3)}
 .badge-whale{background:rgba(74,158,255,.12);color:var(--blue);border:1px solid rgba(74,158,255,.25)}
 .badge-big{background:rgba(168,85,247,.1);color:var(--purple);border:1px solid rgba(168,85,247,.2)}
-.whale-stats{display:flex;gap:16px;font-size:9px;padding:3px 10px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.whale-stats{display:flex;gap:12px;font-size:9px;padding:4px 10px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;align-items:center}
 .wstat{color:var(--text3)}
 .wstat span{font-family:var(--mono);font-weight:500}
 .wstat .up{color:var(--green)}
@@ -176,7 +176,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 </style>
 </head>
 <body>
-<div class="wrap" style="position:relative">
+<div class="wrap" style="position:relative;height:100vh;overflow:hidden">
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:16px">
     <div class="brand-wrap">
@@ -355,7 +355,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 
       </div>
     </div>
-  </div>
     <!-- BTC DOMINANCE + ALT SEASON -->
     <div class="panel" id="dominancePanel" style="min-width:0">
       <div class="ph">
@@ -399,7 +398,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 
       </div>
     </div>
-  </div>
   <!-- WHALE TRACKER ROW -->
   <div class="whale-row">
     <div class="whale-stats">
@@ -2622,27 +2620,45 @@ function connectWhaleWS() {
   // Spot aggTrade has all large trades including institutional
   const streams = WHALE_SYMBOLS.map(s => `${s.toLowerCase()}@aggTrade`).join('/');
   
-  // Binance Spot WebSocket — always works from browser, no auth needed
-  whaleWS = new WebSocket(`wss://stream.binance.com/stream?streams=${streams}`);
+  // Try multiple Binance endpoints — some are blocked by certain networks
+  const endpoints = [
+    `wss://stream.binance.com:9443/stream?streams=${streams}`,
+    `wss://stream.binance.com/stream?streams=${streams}`,
+    `wss://data-stream.binance.vision/stream?streams=${streams}`,
+  ];
+  let epIndex = 0;
 
-  let connTimeout = setTimeout(() => {
-    // If not connected in 5s, try alternate port
-    if(whaleWS.readyState !== WebSocket.OPEN) {
-      whaleWS.close();
-      whaleWS = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
-      attachWhaleHandlers(whaleWS);
+  function tryNextEndpoint() {
+    if(epIndex >= endpoints.length) {
+      // All failed — retry from first after 10s
+      epIndex = 0;
+      document.getElementById('wsStatus').textContent = 'All endpoints failed, retrying...';
+      wsReconnectTimer = setTimeout(connectWhaleWS, 10000);
+      return;
     }
-  }, 5000);
+    const url = endpoints[epIndex++];
+    document.getElementById('wsStatus').textContent = `Connecting... (${epIndex}/${endpoints.length})`;
+    whaleWS = new WebSocket(url);
+    
+    const timeout = setTimeout(() => {
+      if(whaleWS.readyState !== WebSocket.OPEN) {
+        whaleWS.close();
+        tryNextEndpoint();
+      }
+    }, 4000);
 
-  attachWhaleHandlers(whaleWS, connTimeout);
+    attachWhaleHandlers(whaleWS, timeout, tryNextEndpoint);
+  }
+
+  tryNextEndpoint();
 }
 
-function attachWhaleHandlers(ws, connTimeout) {
+function attachWhaleHandlers(ws, connTimeout, failCallback) {
   ws.onopen = () => {
     if(connTimeout) clearTimeout(connTimeout);
     if(wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
     document.getElementById('wsDot').classList.add('connected');
-    document.getElementById('wsStatus').textContent = 'Live · Binance Spot';
+    document.getElementById('wsStatus').textContent = 'Live · Binance';
     document.getElementById('wsStatus').style.color = 'var(--green)';
   };
 
@@ -2666,17 +2682,23 @@ function attachWhaleHandlers(ws, connTimeout) {
     } catch(e) {}
   };
 
-  ws.onerror = (e) => {
+  ws.onerror = () => {
+    if(connTimeout) clearTimeout(connTimeout);
     document.getElementById('wsDot').classList.remove('connected');
-    document.getElementById('wsStatus').textContent = 'Error';
+    document.getElementById('wsStatus').textContent = 'Error — trying next...';
     document.getElementById('wsStatus').style.color = 'var(--red)';
   };
 
   ws.onclose = () => {
     document.getElementById('wsDot').classList.remove('connected');
-    document.getElementById('wsStatus').textContent = 'Reconnecting...';
-    document.getElementById('wsStatus').style.color = 'var(--orange)';
-    wsReconnectTimer = setTimeout(connectWhaleWS, 3000);
+    if(failCallback) {
+      // Try next endpoint
+      failCallback();
+    } else {
+      document.getElementById('wsStatus').textContent = 'Reconnecting...';
+      document.getElementById('wsStatus').style.color = 'var(--orange)';
+      wsReconnectTimer = setTimeout(connectWhaleWS, 5000);
+    }
   };
 }
 
