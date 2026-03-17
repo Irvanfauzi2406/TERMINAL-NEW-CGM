@@ -659,6 +659,9 @@ let tfRange  = '1day';
 let tfIntvl  = '15min';
 let myChart  = null;
 let tab      = 'all';
+let animArcs = [];
+let animPulses = [];
+let animRAF = null;
 
 // Setup removed — key hardcoded
 
@@ -2082,9 +2085,7 @@ function drawHubs(ctx, W, H, activeHubNames, arcPairs) {
 }
 
 // Animated arc drawing
-let animArcs = [];
-let animPulses = [];
-let animRAF = null;
+// animArcs moved to top
 
 function startMapAnimation(sym) {
   const entry = WL.find(w=>w.sym===sym);
@@ -2222,7 +2223,7 @@ function animateMap(canvas, W, H, activeHubs, pairs) {
 }
 
 // ─── SENTIMENT ENGINE ─────────────────────────────────────────────────────────
-const BINANCE_FAPI = 'https://fapi.binance.com';
+const BINANCE_FAPI = 'https://www.binance.com';
 
 // ── Fear & Greed ───────────────────────────────────────────────────────────────
 async function fetchFearGreed() {
@@ -2283,7 +2284,7 @@ async function fetchFundingRates() {
     // Try Binance FAPI first (may be CORS blocked on some browsers)
     let binFR = null, nextFunding = null;
     try {
-      const r = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT',
+      const r = await fetch('https://www.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT',
         {signal: makeSignal(4000)});
       const d = await r.json();
       if(d?.lastFundingRate) {
@@ -2364,7 +2365,7 @@ async function fetchOpenInterest() {
     let oiUSD = null;
     // Try Binance FAPI
     try {
-      const r = await fetch('https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT',
+      const r = await fetch('https://www.binance.com/fapi/v1/openInterest?symbol=BTCUSDT',
         {signal: makeSignal(4000)});
       const d = await r.json();
       if(d?.openInterest) {
