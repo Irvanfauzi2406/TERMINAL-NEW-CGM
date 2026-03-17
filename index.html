@@ -876,11 +876,17 @@ async function renderChart(sym) {
   const canvas = document.getElementById('mainChart');
   canvas.width  = canvas.parentElement.clientWidth - 8;
   canvas.height = canvas.parentElement.clientHeight - 8;
-  if(myChart){
+  // Destroy any existing Chart.js instance on this canvas
+  if(myChart) {
     try { myChart.destroy(); } catch(e) {}
     myChart = null;
   }
-  // Extra safety: clear canvas context
+  // Also check Chart.js registry for orphaned instances
+  try {
+    const existing = Chart.getChart('mainChart');
+    if(existing) existing.destroy();
+  } catch(e) {}
+  // Clear canvas
   const ctx2d = canvas.getContext('2d');
   if(ctx2d) ctx2d.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -1858,7 +1864,7 @@ async function init(){
   // ── STEP 2: Non-blocking background tasks
   setTimeout(initMap, 200);
   setTimeout(connectWhaleWS, 500);
-  setTimeout(connectPriceWS, 800); // Realtime crypto prices
+  // priceWS removed
   setTimeout(loadSentiment, 1000);
   setTimeout(fetchDominance, 1500);
   // Heatmap data fetched on demand when tab is opened
@@ -2532,55 +2538,7 @@ let whaleTradeCount = 0;
 let whaleLargest    = 0;
 let wsReconnectTimer = null;
 
-// ─── PRICE WEBSOCKET (realtime crypto prices via Binance miniTicker) ────────────
-const PRICE_SYMBOLS = ['btcusdt','ethusdt','solusdt','bnbusdt','xrpusdt'];
-let priceWS = null;
-
-function connectPriceWS() {
-  if(priceWS) { try { priceWS.close(); } catch(e){} }
-  const streams = PRICE_SYMBOLS.map(s => `${s}@miniTicker`).join('/');
-  try {
-    priceWS = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
-  } catch(e) { return; }
-
-  priceWS.onmessage = (event) => {
-    try {
-      const msg  = JSON.parse(event.data);
-      const d    = msg.data || msg;
-      if(!d || !d.c || !d.s) return;
-      // Map Binance symbol to our WL key
-      const symMap = {
-        'BTCUSDT':'BTC/USD','ETHUSDT':'ETH/USD','SOLUSDT':'SOL/USD',
-        'BNBUSDT':'BNB/USD','XRPUSDT':'XRP/USD'
-      };
-      const wlSym = symMap[d.s];
-      if(!wlSym) return;
-      const p   = parseFloat(d.c);
-      const o   = parseFloat(d.o);
-      const chg = p - o;
-      const pct = (chg / o) * 100;
-      // Update cache with fresh realtime data
-      qCache[wlSym] = {
-        c: p, o: o, h: parseFloat(d.h), l: parseFloat(d.l),
-        pc: o, d: chg, dp: pct, t: Date.now()/1000, _static: false
-      };
-      // Update UI if this is the selected symbol
-      if(selected === wlSym) {
-        const idr = isIDR(wlSym);
-        document.getElementById('cprice').textContent = fmtP(p, idr);
-        const el = document.getElementById('cchg');
-        el.textContent = `${chg>=0?'+':''}${fmtP(chg,idr)} (${chg>=0?'+':''}${pct.toFixed(2)}%)`;
-        el.className = 'cchg ' + (chg >= 0 ? 'up' : 'dn');
-        renderOB(p, idr);
-      }
-    } catch(e) {}
-  };
-
-  priceWS.onclose = () => {}; // disabled
-  priceWS.onerror = () => { try { priceWS.close(); } catch(e){} };
-}
-
-// 2s interval removed — was causing performance issues
+// priceWS removed — CoinGecko handles crypto prices
 
 function connectWhaleWS() {
   if(whaleWS) { try { whaleWS.close(); } catch(e){} }
