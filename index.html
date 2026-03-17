@@ -876,19 +876,23 @@ async function renderChart(sym) {
   const canvas = document.getElementById('mainChart');
   canvas.width  = canvas.parentElement.clientWidth - 8;
   canvas.height = canvas.parentElement.clientHeight - 8;
-  // Destroy any existing Chart.js instance on this canvas
+  // Destroy existing chart — pass canvas element not string ID
   if(myChart) {
     try { myChart.destroy(); } catch(e) {}
     myChart = null;
   }
-  // Also check Chart.js registry for orphaned instances
   try {
-    const existing = Chart.getChart('mainChart');
+    const existing = Chart.getChart(canvas); // pass element, not string
     if(existing) existing.destroy();
   } catch(e) {}
-  // Clear canvas
-  const ctx2d = canvas.getContext('2d');
-  if(ctx2d) ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+  // Re-create canvas element to fully reset (nuclear option)
+  const parent = canvas.parentElement;
+  const newCanvas = document.createElement('canvas');
+  newCanvas.id = 'mainChart';
+  parent.replaceChild(newCanvas, canvas);
+  const freshCanvas = newCanvas;
+  freshCanvas.width  = parent.clientWidth - 8;
+  freshCanvas.height = parent.clientHeight - 8;
 
   document.getElementById('chartSrc').textContent = 'Loading...';
   document.getElementById('chartSrc').style.color = 'var(--text3)';
@@ -906,10 +910,11 @@ async function renderChart(sym) {
   }
 
   if(!chartData) {
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const ndc = document.getElementById('mainChart');
+    const ctx = ndc.getContext('2d');
+    ctx.clearRect(0,0,ndc.width,ndc.height);
     ctx.fillStyle='#4a5a78'; ctx.font='11px IBM Plex Mono'; ctx.textAlign='center';
-    ctx.fillText('Chart tidak tersedia. Setup API key untuk data nyata.', canvas.width/2, canvas.height/2);
+    ctx.fillText('Chart tidak tersedia. Setup API key untuk data nyata.', ndc.width/2, ndc.height/2);
     document.getElementById('chartSrc').textContent = 'No data';
     document.getElementById('chartSrc').style.color = 'var(--red)';
     return;
@@ -925,10 +930,11 @@ async function renderChart(sym) {
   }
 
   const useCandle = chartData.ohlc && chartData.ohlc.length > 0 && typeof CandlestickController !== 'undefined';
+  const renderCanvas = document.getElementById('mainChart');
 
   if(useCandle) {
     // ── Candlestick chart ──
-    myChart = new Chart(canvas.getContext('2d'), {
+    myChart = new Chart(renderCanvas.getContext('2d'), {
       type: 'candlestick',
       data: {
         datasets:[{
