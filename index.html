@@ -553,6 +553,14 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
 <script>
 // ─── KEYS ─────────────────────────────────────────────────────────────────────
 const FH_KEY = ''; // Disabled — using CoinGecko instead
+
+// Safe timeout helper — works on all browsers
+function makeSignal(ms) {
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
+
 const TD_KEY = '5cb91a751fc04995ab1e0f161c2aa02b';
 
 // ─── CACHE (declared early — used by STATIC_PRICES below)
@@ -562,20 +570,24 @@ let chCache = {};
 // ── STATIC FALLBACK PRICES (shown instantly, updated by APIs in background)
 // These ensure the terminal ALWAYS renders — never blank
 const STATIC_PRICES = {
-  'AAPL':     {c:222.13, dp:0.42,  d:0.93,  o:221.5,  h:223.2,  l:220.8,  pc:221.2},
-  'NVDA':     {c:875.40, dp:-1.20, d:-10.6, o:882.0,  h:886.5,  l:872.1,  pc:886.0},
-  'TSLA':     {c:175.22, dp:2.10,  d:3.61,  o:172.5,  h:176.8,  l:171.9,  pc:171.6},
-  'MSFT':     {c:415.50, dp:0.65,  d:2.69,  o:413.8,  h:416.9,  l:412.5,  pc:412.8},
-  'AMZN':     {c:195.80, dp:1.10,  d:2.13,  o:194.2,  h:196.5,  l:193.8,  pc:193.7},
-  'META':     {c:528.60, dp:-0.80, d:-4.26, o:531.5,  h:533.2,  l:527.1,  pc:532.9},
+  // US Stocks — updated March 2026
+  'AAPL':     {c:250.12, dp:0.96,  d:2.39,  o:248.5,  h:251.2,  l:247.8,  pc:247.7},
+  'NVDA':     {c:183.86, dp:1.61,  d:2.92,  o:181.5,  h:184.9,  l:180.2,  pc:180.9},
+  'TSLA':     {c:396.23, dp:1.29,  d:5.06,  o:392.0,  h:398.5,  l:390.1,  pc:391.2},
+  'MSFT':     {c:399.21, dp:0.93,  d:3.68,  o:396.5,  h:401.0,  l:395.2,  pc:395.5},
+  'AMZN':     {c:212.18, dp:2.17,  d:4.51,  o:208.5,  h:213.2,  l:207.8,  pc:207.7},
+  'META':     {c:627.68, dp:2.28,  d:14.0,  o:620.0,  h:629.5,  l:618.2,  pc:613.7},
+  // IDX
   'IDX:BBCA': {c:9800,   dp:1.04,  d:100,   o:9700,   h:9850,   l:9680,   pc:9700},
   'IDX:BMRI': {c:5850,   dp:0.86,  d:50,    o:5800,   h:5900,   l:5775,   pc:5800},
   'IDX:TLKM': {c:3510,   dp:-0.57, d:-20,   o:3530,   h:3545,   l:3495,   pc:3530},
-  'BTC/USD':  {c:83200,  dp:1.43,  d:1175,  o:82100,  h:83800,  l:81900,  pc:82025},
-  'ETH/USD':  {c:3245,   dp:0.94,  d:30.2,  o:3215,   h:3268,   l:3201,   pc:3214.8},
-  'SOL/USD':  {c:148.50, dp:1.38,  d:2.02,  o:146.5,  h:149.8,  l:145.9,  pc:146.5},
-  'BNB/USD':  {c:598.40, dp:0.72,  d:4.28,  o:594.1,  h:601.2,  l:593.5,  pc:594.1},
-  'XRP/USD':  {c:0.5842, dp:-0.43, d:-0.003,o:0.586,  h:0.591,  l:0.581,  pc:0.587},
+  // Crypto — akan di-update CoinGecko realtime
+  'BTC/USD':  {c:74000,  dp:3.70,  d:2640,  o:71800,  h:74500,  l:71500,  pc:71360},
+  'ETH/USD':  {c:2330,   dp:10.49, d:221,   o:2115,   h:2350,   l:2100,   pc:2109},
+  'SOL/USD':  {c:95.10,  dp:8.04,  d:7.09,  o:88.5,   h:96.2,   l:87.8,   pc:88.0},
+  'BNB/USD':  {c:680.18, dp:3.06,  d:20.2,  o:661.5,  h:682.5,  l:659.8,  pc:659.9},
+  'XRP/USD':  {c:1.530,  dp:8.38,  d:0.118, o:1.415,  h:1.545,  l:1.410,  pc:1.412},
+  // Forex
   'EUR/USD':  {c:1.0842, dp:0.12,  d:0.0013,o:1.0829, h:1.0861, l:1.0820, pc:1.0829},
   'USD/IDR':  {c:15840,  dp:-0.19, d:-30,   o:15870,  h:15890,  l:15825,  pc:15870},
   'GBP/USD':  {c:1.2654, dp:0.08,  d:0.001, o:1.2644, h:1.2671, l:1.2638, pc:1.2644},
@@ -678,7 +690,7 @@ async function fetchCryptoQuotes(syms) {
   const ids = [...new Set(syms.map(s=>CG_IDS[s]).filter(Boolean))];
   if(!ids.length) return {};
   try {
-    const r = await fetch(`${CG}/simple/price?ids=${ids.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`, {signal: AbortSignal.timeout(5000)});
+    const r = await fetch(`${CG}/simple/price?ids=${ids.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`, {signal: makeSignal(5000)});
     const d = await r.json();
     // Map back to our sym keys
     const out = {};
@@ -700,7 +712,7 @@ async function fetchYFQuotes(symbols) {
     // Yahoo Finance v7 quote - works without key, CORS via query2
     const syms = symbols.join(',');
     const url = `${YFQ}?symbols=${encodeURIComponent(syms)}&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,regularMarketOpen,regularMarketDayHigh,regularMarketDayLow,regularMarketPreviousClose,regularMarketTime`;
-    const r = await fetch(url, {signal: AbortSignal.timeout(6000)});
+    const r = await fetch(url, {signal: makeSignal(6000)});
     const d = await r.json();
     const results = d?.quoteResponse?.result || [];
     const out = {};
@@ -1010,94 +1022,76 @@ async function fetchQuote(sym) {
   return null;
 }
 async function fetchAllQuotes() {
-  // Crypto via CoinGecko (free, no key, CORS OK)
+  // ── CoinGecko untuk semua crypto (free, no key, CORS OK)
   const cgItems = WL.filter(w => w.cg);
   const cgIds   = cgItems.map(w => w.cg).join(',');
-  const cgFetch = fetch(
-    `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds}&vs_currencies=usd&include_24hr_change=true`,
-    {signal: AbortSignal.timeout(6000)}
-  ).then(r => r.json()).catch(() => ({}));
 
-  // Stocks + IDX + Forex via Finnhub (13 symbols, within rate limit)
-  const fhItems   = WL.filter(w => !w.cg);
-  const fhFetches = fhItems.map(w =>
-    fhGet('quote', {symbol: w.fh})
-      .then(d => ({sym: w.sym, d}))
-      .catch(() => ({sym: w.sym, d: null}))
-  );
+  try {
+    const r = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`,
+      {signal: makeSignal(8000)}
+    );
+    if(!r.ok) throw new Error('CG ' + r.status);
+    const cgData = await r.json();
 
-  const [cgData, fhResults] = await Promise.all([
-    cgFetch,
-    Promise.all(fhFetches),
-  ]);
-
-  // Map CoinGecko results + pre-fill heatmap data
-  cgItems.forEach(w => {
-    const d = cgData[w.cg];
-    if(d?.usd) {
-      const p = d.usd, chg = d.usd_24h_change || 0;
-      qCache[w.sym] = {c:p, o:p*(1-0.005), h:p*(1+0.008), l:p*(1-0.008),
-                       pc:p/(1+chg/100), d:p*chg/100, dp:chg, t:Date.now()/1000};
-      // Pre-fill heatData so heatmap loads instantly
-      if(w.cg) {
-        heatData[w.cg] = {
-          id: w.cg, symbol: w.label.toLowerCase(), name: w.name,
-          current_price: p,
-          price_change_percentage_24h: chg,
-          total_volume: 1e9,
-          market_cap: p * (w.label==='BTC'?19700000:w.label==='ETH'?120000000:1e8),
+    cgItems.forEach(w => {
+      const d = cgData[w.cg];
+      if(d?.usd) {
+        const p = d.usd, chg = d.usd_24h_change || 0;
+        qCache[w.sym] = {
+          c: p, o: p*(1-0.005), h: p*(1+0.008), l: p*(1-0.008),
+          pc: p/(1+chg/100), d: p*chg/100, dp: chg,
+          t: Date.now()/1000
         };
+        if(w.cg) {
+          heatData[w.cg] = {
+            id: w.cg, symbol: w.label.toLowerCase(), name: w.name,
+            current_price: p, price_change_percentage_24h: chg,
+            total_volume: d.usd_24h_vol || 1e9,
+            market_cap: p * (w.label==='BTC'?19700000:w.label==='ETH'?120000000:1e8),
+          };
+        }
       }
-    }
-  });
+    });
+    console.log('✅ CoinGecko quotes updated');
+  } catch(e) {
+    console.warn('CoinGecko failed:', e.message);
+  }
 
-  // Map Finnhub results
-  fhResults.forEach(r => {
-    if(r.d?.c) qCache[r.sym] = r.d;
-  });
-
+  // Stocks/IDX/Forex: static prices sudah ada, tidak perlu fetch
   renderWL(); renderTicker(); renderIndices();
 }
 
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
 // ─── FETCH NEWS (Finnhub) ─────────────────────────────────────────────────────
-async function fetchNews(fhSym) {
-  const today = new Date().toISOString().split('T')[0];
-  const from  = new Date(Date.now()-7*864e5).toISOString().split('T')[0];
-  let items = [];
-
-  // Try Finnhub company news first
-  if(!fhSym.startsWith('BINANCE:') && !fhSym.startsWith('OANDA:')) {
-    const plain = fhSym.replace('IDX:','');
-    const d = await fhGet('company-news', {symbol: plain, from, to: today});
-    if(Array.isArray(d) && d.length) items = d.slice(0, 15);
-  }
-
-  // Finnhub general news fallback
-  if(!items.length) {
-    const d = await fhGet('news', {category: 'general'});
-    if(Array.isArray(d) && d.length) items = d.slice(0, 15);
-  }
-
-  // Last resort: CryptoCompare news (free, CORS OK, always available)
-  if(!items.length) {
-    try {
-      const r = await fetch('https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest', 
-        {signal: AbortSignal.timeout(5000)});
-      const d = await r.json();
-      if(d?.Data) {
-        items = d.Data.slice(0,15).map(n => ({
-          headline: n.title,
-          url: n.url,
-          source: n.source_info?.name || n.source,
-          datetime: n.published_on,
-        }));
-      }
-    } catch(e) {}
-  }
-
-  return items;
+async function fetchNews(sym) {
+  // CryptoCompare — free, CORS OK, no key needed
+  // Pick relevant category based on symbol
+  const label = (WL.find(w=>w.sym===sym||w.fh===sym)?.label||sym).toUpperCase();
+  const catMap = {
+    'BTC':'BTC','ETH':'ETH','SOL':'Solana','BNB':'BNB','XRP':'XRP',
+    'AAPL':'Technology','NVDA':'Technology','MSFT':'Technology',
+    'TSLA':'Technology','META':'Technology','AMZN':'Technology',
+  };
+  const cat = catMap[label] || '';
+  const url = cat
+    ? `https://min-api.cryptocompare.com/data/v2/news/?lang=EN&categories=${encodeURIComponent(cat)}&sortOrder=latest`
+    : 'https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest';
+  try {
+    const r = await fetch(url, {signal: makeSignal(8000)});
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if(d?.Data?.length) {
+      return d.Data.slice(0,15).map(n => ({
+        headline: n.title,
+        url: n.url,
+        source: n.source_info?.name || n.source,
+        datetime: n.published_on,
+      }));
+    }
+  } catch(e) { console.warn('News fetch failed:', e.message); }
+  return [];
 }
 
 // ─── RENDER WATCHLIST ─────────────────────────────────────────────────────────
@@ -1182,15 +1176,19 @@ function classify(t=''){
 function renderNews(items){
   const el=document.getElementById('newsFeed');
   if(!items||!items.length){
-    el.innerHTML='<div style="padding:20px;color:var(--text3);text-align:center;font-size:10px">No news</div>';
+    el.innerHTML='<div style="padding:20px;color:var(--text3);text-align:center;font-size:10px;line-height:2">No news<br><span style="font-size:9px">Loading...</span></div>';
     return;
   }
   el.innerHTML=items.map(n=>{
-    const {tag,cls}=classify(n.headline||'');
-    return `<div class="news-item" onclick="window.open('${n.url||'#'}','_blank')">
-      <div class="ntime">${timeAgo(n.datetime)}${n.source?' · '+n.source:''}</div>
+    const headline = n.headline || n.title || '—';
+    const url = n.url || '#';
+    const src = n.source || n.provider || '';
+    const ts  = n.datetime || n.providerPublishTime || 0;
+    const {tag,cls}=classify(headline);
+    return `<div class="news-item" onclick="window.open('${url}','_blank')">
+      <div class="ntime">${timeAgo(ts)}${src?' · '+src:''}</div>
       <span class="ntag ${cls}">${tag}</span>
-      <div class="nhead">${n.headline||'—'}</div>
+      <div class="nhead">${headline}</div>
     </div>`;
   }).join('');
 }
@@ -1421,7 +1419,7 @@ async function fetchHeatmapData() {
   try {
     const r = await fetch(
       `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=50&sparkline=false&price_change_percentage=24h`,
-      {signal: AbortSignal.timeout(10000)}
+      {signal: makeSignal(10000)}
     );
     if(r.ok) {
       const d = await r.json();
@@ -1437,7 +1435,7 @@ async function fetchHeatmapData() {
   try {
     const r2 = await fetch(
       `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`,
-      {signal: AbortSignal.timeout(8000)}
+      {signal: makeSignal(8000)}
     );
     if(r2.ok) {
       const d2 = await r2.json();
@@ -1480,7 +1478,7 @@ async function fetchHeatmapData() {
     const cgIds = HEAT_COINS.map(c=>c.id).join(',');
     const r2 = await fetch(
       `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`,
-      {signal: AbortSignal.timeout(8000)}
+      {signal: makeSignal(8000)}
     );
     if(r2.ok) {
       const d2 = await r2.json();
@@ -1856,9 +1854,22 @@ async function init(){
   setTimeout(fetchDominance, 1500);
   // Heatmap data fetched on demand when tab is opened
   setTimeout(() => {
-    fhGet('news',{category:'general'})
-      .then(d => renderNews(Array.isArray(d) ? d.slice(0,12) : []))
-      .catch(()=>{});
+    // Load news immediately on startup
+    fetchNews('BTC/USD').then(items => {
+      if(items.length) renderNews(items);
+      else {
+        // Fallback: general crypto news
+        fetch('https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest', {signal:makeSignal(8000)})
+          .then(r=>r.json())
+          .then(d => {
+            if(d?.Data?.length) renderNews(d.Data.slice(0,15).map(n=>({
+              headline:n.title, url:n.url,
+              source:n.source_info?.name||n.source,
+              datetime:n.published_on
+            })));
+          }).catch(()=>{});
+      }
+    });
   }, 400);
 
   // ── STEP 3: Fetch real prices in background, update silently
@@ -2273,7 +2284,7 @@ async function fetchFundingRates() {
     let binFR = null, nextFunding = null;
     try {
       const r = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT',
-        {signal: AbortSignal.timeout(4000)});
+        {signal: makeSignal(4000)});
       const d = await r.json();
       if(d?.lastFundingRate) {
         binFR = parseFloat(d.lastFundingRate) * 100;
@@ -2354,7 +2365,7 @@ async function fetchOpenInterest() {
     // Try Binance FAPI
     try {
       const r = await fetch('https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT',
-        {signal: AbortSignal.timeout(4000)});
+        {signal: makeSignal(4000)});
       const d = await r.json();
       if(d?.openInterest) {
         const btcPrice = qCache['BTC/USD']?.c || 83000;
@@ -2852,7 +2863,7 @@ async function fetchDominance() {
     // CoinGecko global endpoint — free, no key, CORS OK
     const r = await fetch(
       'https://api.coingecko.com/api/v3/global',
-      {signal: AbortSignal.timeout(6000)}
+      {signal: makeSignal(6000)}
     );
     if(!r.ok) throw new Error('CG global failed');
     const d = await r.json();
