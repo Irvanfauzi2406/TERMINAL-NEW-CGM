@@ -873,26 +873,19 @@ async function renderChart(sym) {
   const q      = qCache[sym];
   const idr    = isIDR(sym);
   const isUp   = (q?.dp||0) >= 0;
-  const canvas = document.getElementById('mainChart');
-  canvas.width  = canvas.parentElement.clientWidth - 8;
-  canvas.height = canvas.parentElement.clientHeight - 8;
-  // Destroy existing chart — pass canvas element not string ID
+
+  // Destroy existing chart safely
   if(myChart) {
     try { myChart.destroy(); } catch(e) {}
     myChart = null;
   }
-  try {
-    const existing = Chart.getChart(canvas); // pass element, not string
-    if(existing) existing.destroy();
-  } catch(e) {}
-  // Re-create canvas element to fully reset (nuclear option)
-  const parent = canvas.parentElement;
-  const newCanvas = document.createElement('canvas');
-  newCanvas.id = 'mainChart';
-  parent.replaceChild(newCanvas, canvas);
-  const freshCanvas = newCanvas;
-  freshCanvas.width  = parent.clientWidth - 8;
-  freshCanvas.height = parent.clientHeight - 8;
+  // Re-create fresh canvas to avoid "already in use" error
+  const chartArea = document.querySelector('.chart-area');
+  if(!chartArea) return;
+  chartArea.innerHTML = '<canvas id="mainChart" style="display:block"></canvas>';
+  const canvas = document.getElementById('mainChart');
+  canvas.width  = chartArea.clientWidth - 8;
+  canvas.height = chartArea.clientHeight - 8;
 
   document.getElementById('chartSrc').textContent = 'Loading...';
   document.getElementById('chartSrc').style.color = 'var(--text3)';
@@ -930,11 +923,9 @@ async function renderChart(sym) {
   }
 
   const useCandle = chartData.ohlc && chartData.ohlc.length > 0 && typeof CandlestickController !== 'undefined';
-  const renderCanvas = document.getElementById('mainChart');
-
   if(useCandle) {
     // ── Candlestick chart ──
-    myChart = new Chart(renderCanvas.getContext('2d'), {
+    myChart = new Chart(canvas.getContext('2d'), {
       type: 'candlestick',
       data: {
         datasets:[{
@@ -1875,22 +1866,20 @@ async function init(){
   setTimeout(fetchDominance, 1500);
   // Heatmap data fetched on demand when tab is opened
   setTimeout(() => {
-    // Load news immediately on startup
-    fetchNews('BTC/USD').then(items => {
-      if(items.length) renderNews(items);
-      else {
-        // Fallback: general crypto news
-        fetch('https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest', {signal:makeSignal(8000)})
-          .then(r=>r.json())
-          .then(d => {
-            if(d?.Data?.length) renderNews(d.Data.slice(0,15).map(n=>({
-              headline:n.title, url:n.url,
-              source:n.source_info?.name||n.source,
-              datetime:n.published_on
-            })));
-          }).catch(()=>{});
-      }
-    });
+    // Load news immediately
+    (async () => {
+      try {
+        const r = await fetch('https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest', {signal:makeSignal(8000)});
+        const d = await r.json();
+        if(d?.Data?.length) {
+          renderNews(d.Data.slice(0,15).map(n=>({
+            headline:n.title, url:n.url,
+            source:n.source_info?.name||n.source,
+            datetime:n.published_on
+          })));
+        }
+      } catch(e) { console.warn('News init failed:', e.message); }
+    })();
   }, 400);
 
   // ── STEP 3: Fetch real prices in background, update silently
