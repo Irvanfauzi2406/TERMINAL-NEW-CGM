@@ -876,7 +876,13 @@ async function renderChart(sym) {
   const canvas = document.getElementById('mainChart');
   canvas.width  = canvas.parentElement.clientWidth - 8;
   canvas.height = canvas.parentElement.clientHeight - 8;
-  if(myChart){myChart.destroy();myChart=null;}
+  if(myChart){
+    try { myChart.destroy(); } catch(e) {}
+    myChart = null;
+  }
+  // Extra safety: clear canvas context
+  const ctx2d = canvas.getContext('2d');
+  if(ctx2d) ctx2d.clearRect(0, 0, canvas.width, canvas.height);
 
   document.getElementById('chartSrc').textContent = 'Loading...';
   document.getElementById('chartSrc').style.color = 'var(--text3)';
@@ -2278,38 +2284,16 @@ function renderFearGreed(val, label, prev, avg, ts) {
   if(upd && ts) upd.textContent = 'Updated ' + timeAgo(parseInt(ts));
 }
 
-// ── BTC Funding Rate ───────────────────────────────────────────────────────────
+
+
+// ── BTC Funding Rate (simulation — Binance FAPI blocked in browser)
 async function fetchFundingRates() {
-  try {
-    // Try Binance FAPI first (may be CORS blocked on some browsers)
-    let binFR = null, nextFunding = null;
-    try {
-      const r = await fetch('https://www.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT',
-        {signal: makeSignal(4000)});
-      const d = await r.json();
-      if(d?.lastFundingRate) {
-        binFR = parseFloat(d.lastFundingRate) * 100;
-        nextFunding = d.nextFundingTime;
-      }
-    } catch(e) {}
-
-    // Fallback: derive realistic funding rate from BTC price momentum
-    if(binFR === null) {
-      const btcPrice = qCache['BTC/USD']?.c || 83000;
-      const btcChg   = qCache['BTC/USD']?.dp || 0;
-      // Funding rate correlates with price movement: positive when price rising
-      binFR = parseFloat((btcChg * 0.001 + (Math.random()-0.5)*0.002).toFixed(4));
-    }
-
-    const bybitFR = binFR + (Math.random() - 0.5) * 0.003;
-    const okxFR   = binFR + (Math.random() - 0.5) * 0.004;
-    // Next funding: every 8h at 00:00, 08:00, 16:00 UTC
-    if(!nextFunding) {
-      const h8 = 8 * 3600000;
-      nextFunding = Math.ceil(Date.now() / h8) * h8;
-    }
-    renderFundingRate(binFR, bybitFR, okxFR, nextFunding, []);
-  } catch(e) { console.warn('Funding rate failed', e); }
+  const btcChg  = qCache['BTC/USD']?.dp || 0;
+  const binFR   = parseFloat((btcChg * 0.0008 + (Math.random()-0.48)*0.003).toFixed(4));
+  const bybitFR = parseFloat((binFR + (Math.random()-0.5)*0.002).toFixed(4));
+  const okxFR   = parseFloat((binFR + (Math.random()-0.5)*0.002).toFixed(4));
+  const h8 = 8 * 3600000;
+  renderFundingRate(binFR, bybitFR, okxFR, Math.ceil(Date.now()/h8)*h8, []);
 }
 
 function renderFundingRate(bin, bybit, okx, nextTs, hist) {
@@ -2361,32 +2345,12 @@ function renderFundingRate(bin, bybit, okx, nextTs, hist) {
 
 // ── Open Interest ──────────────────────────────────────────────────────────────
 async function fetchOpenInterest() {
-  try {
-    let oiUSD = null;
-    // Try Binance FAPI
-    try {
-      const r = await fetch('https://www.binance.com/fapi/v1/openInterest?symbol=BTCUSDT',
-        {signal: makeSignal(4000)});
-      const d = await r.json();
-      if(d?.openInterest) {
-        const btcPrice = qCache['BTC/USD']?.c || 83000;
-        oiUSD = parseFloat(d.openInterest) * btcPrice;
-      }
-    } catch(e) {}
-
-    // Realistic fallback based on BTC market cap
-    if(!oiUSD) {
-      const btcPrice = qCache['BTC/USD']?.c || 83000;
-      // BTC OI typically 1-3% of market cap
-      oiUSD = btcPrice * 19700000 * 0.018 * (0.9 + Math.random() * 0.2);
-    }
-
-    const hist = Array.from({length:24}, (_,i) => 
-      oiUSD * (0.95 + Math.random() * 0.1)
-    );
-    const pcts = {bin:0.34+Math.random()*0.04, bybit:0.28+Math.random()*0.04, okx:0.18+Math.random()*0.03};
-    renderOpenInterest(oiUSD, hist, pcts);
-  } catch(e) { console.warn('OI failed', e); }
+  // Simulate realistic OI based on BTC price
+  const btcPrice = qCache['BTC/USD']?.c || 74000;
+  const oiUSD = btcPrice * 19700000 * (0.016 + Math.random()*0.006);
+  const hist = Array.from({length:24}, () => oiUSD * (0.94 + Math.random()*0.12));
+  const pcts = {bin:0.34+Math.random()*0.04, bybit:0.28+Math.random()*0.04, okx:0.18+Math.random()*0.03};
+  renderOpenInterest(oiUSD, hist, pcts);
 }
 
 function renderOpenInterest(total, hist, pcts) {
@@ -2436,15 +2400,8 @@ function renderOpenInterest(total, hist, pcts) {
 
 // ── Liquidation Heatmap ────────────────────────────────────────────────────────
 async function fetchLiquidations() {
-  try {
-    // Binance aggTrades gives liquidation orders — public, no key
-    // We use the liquidation orders endpoint
-    const r = await fetch(`${BINANCE_FAPI}/fapi/v1/allForceOrders?symbol=BTCUSDT&limit=200`).then(r=>r.json()).catch(()=>null);
-    if(!r || !Array.isArray(r)) { renderLiqSimulated(); return; }
-    renderLiquidations(r);
-  } catch(e) {
-    renderLiqSimulated();
-  }
+  // Binance FAPI blocked in browser — use simulation
+  renderLiqSimulated();
 }
 
 function renderLiquidations(orders) {
@@ -2619,7 +2576,7 @@ function connectPriceWS() {
     } catch(e) {}
   };
 
-  priceWS.onclose = () => { setTimeout(connectPriceWS, 5000); }; // 5s delay
+  priceWS.onclose = () => {}; // disabled
   priceWS.onerror = () => { try { priceWS.close(); } catch(e){} };
 }
 
