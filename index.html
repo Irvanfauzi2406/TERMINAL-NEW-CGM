@@ -242,7 +242,7 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
     <div class="chart-area"><canvas id="mainChart"></canvas></div>
   </div>
   <div class="panel">
-    <div class="ph"><span class="pt">NEWS FEED</span><span class="ps up">● LIVE</span></div>
+    <div class="ph"><span class="pt">NEWS FEED</span><span class="ps up" id="newsFeedStatus">● LIVE</span><span onclick="loadNewsManual()" style="color:var(--text3);font-size:9px;cursor:pointer;margin-left:4px" title="Refresh news">⟳</span></div>
     <div class="news-feed" id="newsFeed">
       <div style="padding:24px 10px;color:var(--text3);text-align:center" class="spin">Loading news...</div>
     </div>
@@ -1168,6 +1168,111 @@ async function selectSym(sym){
   startMapAnimation(sym);
 }
 
+// ─── NEWS ENGINE: 5-source fallback chain, auto-refresh 5 min ────────────────
+async function loadNewsOnce() {
+  const statusEl = document.getElementById('newsFeedStatus');
+  // Source 1: CryptoCompare v2
+  try {
+    const r = await fetch(
+      'https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest&extraParams=CryptoGemTerminal',
+      {signal: makeSignal(10000)}
+    );
+    if(r.ok) {
+      const d = await r.json();
+      if(d?.Data?.length) {
+        renderNews(d.Data.slice(0,20).map(n=>({
+          headline: n.title, url: n.url,
+          source: n.source_info?.name || n.source,
+          datetime: n.published_on
+        })));
+        return;
+      }
+    }
+  } catch(e) { console.warn('CC v2:', e.message); }
+
+  // Source 2: CryptoCompare v1
+  try {
+    const r2 = await fetch(
+      'https://min-api.cryptocompare.com/data/news/?lang=EN&sortOrder=latest',
+      {signal: makeSignal(8000)}
+    );
+    if(r2.ok) {
+      const d2 = await r2.json();
+      const arr = Array.isArray(d2) ? d2 : d2?.Data || [];
+      if(arr.length) {
+        renderNews(arr.slice(0,20).map(n=>({
+          headline: n.title, url: n.url,
+          source: n.source_info?.name || n.source,
+          datetime: n.published_on
+        })));
+        return;
+      }
+    }
+  } catch(e) { console.warn('CC v1:', e.message); }
+
+  // Source 3: Cointelegraph RSS via rss2json
+  try {
+    const r3 = await fetch(
+      'https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fcointelegraph.com%2Frss',
+      {signal: makeSignal(8000)}
+    );
+    if(r3.ok) {
+      const d3 = await r3.json();
+      if(d3?.items?.length) {
+        renderNews(d3.items.slice(0,20).map(n=>({
+          headline: n.title, url: n.link,
+          source: 'Cointelegraph',
+          datetime: Math.floor(new Date(n.pubDate).getTime()/1000)
+        })));
+        return;
+      }
+    }
+  } catch(e) { console.warn('CT RSS:', e.message); }
+
+  // Source 4: CoinDesk RSS via rss2json
+  try {
+    const r4 = await fetch(
+      'https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.coindesk.com%2Farc%2Foutboundfeeds%2Frss%2F',
+      {signal: makeSignal(8000)}
+    );
+    if(r4.ok) {
+      const d4 = await r4.json();
+      if(d4?.items?.length) {
+        renderNews(d4.items.slice(0,20).map(n=>({
+          headline: n.title, url: n.link,
+          source: 'CoinDesk',
+          datetime: Math.floor(new Date(n.pubDate).getTime()/1000)
+        })));
+        return;
+      }
+    }
+  } catch(e) { console.warn('CD RSS:', e.message); }
+
+  // Source 5: Bitcoin Magazine RSS via rss2json
+  try {
+    const r5 = await fetch(
+      'https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fbitcoinmagazine.com%2Ffeed',
+      {signal: makeSignal(8000)}
+    );
+    if(r5.ok) {
+      const d5 = await r5.json();
+      if(d5?.items?.length) {
+        renderNews(d5.items.slice(0,20).map(n=>({
+          headline: n.title, url: n.link,
+          source: 'Bitcoin Magazine',
+          datetime: Math.floor(new Date(n.pubDate).getTime()/1000)
+        })));
+        return;
+      }
+    }
+  } catch(e) { console.warn('BM RSS:', e.message); }
+
+  // All sources failed — show offline state
+  const el = document.getElementById('newsFeed');
+  if(el) el.innerHTML = '<div style="padding:20px 10px;color:var(--text3);text-align:center;font-size:10px;line-height:2">⚠ News feed offline<br><span style="font-size:9px">Auto-retry in 5 min</span></div>';
+  if(statusEl) { statusEl.textContent='● OFFLINE'; statusEl.style.color='var(--red)'; }
+}
+
 // ─── RENDER NEWS ──────────────────────────────────────────────────────────────
 const KB=['surge','rally','beat','record','gain','profit','strong','bullish'];
 const KR=['fall','drop','loss','decline','bearish','weak','cut','warn','risk','crash'];
@@ -1183,10 +1288,12 @@ function classify(t=''){
 }
 function renderNews(items){
   const el=document.getElementById('newsFeed');
+  const statusEl=document.getElementById('newsFeedStatus');
   if(!items||!items.length){
     el.innerHTML='<div style="padding:20px;color:var(--text3);text-align:center;font-size:10px;line-height:2">No news<br><span style="font-size:9px">Loading...</span></div>';
     return;
   }
+  if(statusEl){ statusEl.textContent='● LIVE'; statusEl.className='ps up'; }
   el.innerHTML=items.map(n=>{
     const headline = n.headline || n.title || '—';
     const url = n.url || '#';
@@ -1199,6 +1306,14 @@ function renderNews(items){
       <div class="nhead">${headline}</div>
     </div>`;
   }).join('');
+}
+
+function loadNewsManual(){
+  const el=document.getElementById('newsFeed');
+  const statusEl=document.getElementById('newsFeedStatus');
+  if(el) el.innerHTML='<div style="padding:24px 10px;color:var(--text3);text-align:center" class="spin">Refreshing...</div>';
+  if(statusEl){ statusEl.textContent='● LOADING'; statusEl.className='ps nt'; }
+  loadNewsOnce();
 }
 
 // ─── RENDER INDICES ───────────────────────────────────────────────────────────
@@ -1861,47 +1976,10 @@ async function init(){
   setTimeout(loadSentiment, 1000);
   setTimeout(fetchDominance, 1500);
   // Heatmap data fetched on demand when tab is opened
-  // Load news — try multiple sources
-  async function loadNewsOnce() {
-    // Source 1: CryptoCompare
-    try {
-      const r = await fetch('https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest', {signal:makeSignal(10000)});
-      if(r.ok) {
-        const d = await r.json();
-        if(d?.Data?.length) {
-          renderNews(d.Data.slice(0,15).map(n=>({
-            headline:n.title, url:n.url,
-            source:n.source_info?.name||n.source,
-            datetime:n.published_on
-          })));
-          return;
-        }
-      }
-    } catch(e) { console.warn('CryptoCompare news failed:', e.message); }
-
-    // Source 2: CryptoCompare v1 endpoint (simpler)
-    try {
-      const r2 = await fetch('https://min-api.cryptocompare.com/data/news/?lang=EN', {signal:makeSignal(8000)});
-      if(r2.ok) {
-        const d2 = await r2.json();
-        if(Array.isArray(d2) && d2.length) {
-          renderNews(d2.slice(0,15).map(n=>({
-            headline:n.title, url:n.url,
-            source:n.source, datetime:n.published_on
-          })));
-          return;
-        }
-      }
-    } catch(e) { console.warn('CryptoCompare v1 news failed:', e.message); }
-
-    // Fallback: show static placeholder news
-    renderNews([
-      {headline:'BTC surges past $74K amid strong institutional demand', url:'#', source:'CryptoGem', datetime: Date.now()/1000 - 1800},
-      {headline:'Ethereum ETF sees record inflows as altcoin season begins', url:'#', source:'CryptoGem', datetime: Date.now()/1000 - 3600},
-      {headline:'Fed holds rates steady — crypto markets rally in response', url:'#', source:'CryptoGem', datetime: Date.now()/1000 - 7200},
-    ]);
-  }
+  // ─── NEWS ENGINE: multi-source, auto-refresh every 5 minutes ───────────────
   setTimeout(loadNewsOnce, 500);
+  // Auto-refresh news every 5 minutes
+  setInterval(loadNewsOnce, 5 * 60 * 1000);
 
   // ── STEP 3: Fetch real prices in background, update silently
   fetchAllQuotes().then(() => {
