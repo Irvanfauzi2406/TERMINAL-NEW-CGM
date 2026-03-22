@@ -4,10 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CryptoGem Terminal by Irvan — Real-Time Crypto Intelligence</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1/dist/chartjs-adapter-luxon.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -81,11 +78,22 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
 .cchg.up{color:var(--green);background:rgba(0,212,160,.1)}
 .cchg.dn{color:var(--red);background:rgba(255,74,110,.1)}
 .cmeta{color:var(--text3);font-size:9px;margin-left:auto;line-height:1.75;text-align:right}
-.tf-bar{flex-shrink:0;height:28px;background:var(--bg3);border-bottom:1px solid var(--border);padding:0 10px;display:flex;gap:4px;align-items:center}
-.tf-btn{padding:2px 8px;font-size:9px;font-family:var(--mono);background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;transition:all .15s;border-radius:1px;letter-spacing:.5px}
+.tf-bar{flex-shrink:0;height:28px;background:var(--bg3);border-bottom:1px solid var(--border);padding:0 6px;display:flex;gap:2px;align-items:center;overflow:hidden}
+.tf-btn{padding:2px 7px;font-size:9px;font-family:var(--mono);background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;transition:all .15s;border-radius:1px;letter-spacing:.5px;white-space:nowrap}
 .tf-btn:hover{border-color:var(--orange);color:var(--orange)}
 .tf-btn.active{background:var(--orange);border-color:var(--orange);color:#000;font-weight:700}
-.chart-area{flex:1;position:relative;min-height:0}
+.tf-sep{width:1px;height:16px;background:var(--border2);margin:0 2px;flex-shrink:0}
+.ind-btn{padding:2px 7px;font-size:9px;font-family:var(--mono);background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;transition:all .15s;border-radius:1px;letter-spacing:.5px;white-space:nowrap}
+.ind-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.ind-btn.active{background:rgba(0,200,232,.12);border-color:var(--cyan);color:var(--cyan)}
+.draw-btn{padding:2px 7px;font-size:9px;font-family:var(--mono);background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;transition:all .15s;border-radius:1px;white-space:nowrap}
+.draw-btn:hover{border-color:var(--purple);color:var(--purple)}
+.draw-btn.active{background:rgba(168,85,247,.12);border-color:var(--purple);color:var(--purple)}
+.chart-area{flex:1;position:relative;min-height:0;background:var(--bg)}
+#lwChart{width:100%;height:100%}
+/* OHLCV bar at top of chart */
+.ohlcv-bar{position:absolute;top:4px;left:8px;z-index:10;font-size:9px;font-family:var(--mono);color:var(--text3);display:flex;gap:10px;pointer-events:none;background:rgba(10,12,15,.7);padding:2px 8px;border-radius:2px}
+.ohlcv-bar span b{font-weight:500}
 
 /* ── NEWS */
 .news-feed{overflow-y:auto;flex:1}
@@ -231,15 +239,39 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
       <div class="cmeta" id="cmeta">Click any symbol to load chart</div>
     </div>
     <div class="tf-bar">
-      <span style="color:var(--text3);font-size:9px;margin-right:4px">PERIOD:</span>
-      <button class="tf-btn active" onclick="setTF(this,'1day','15min')">1D</button>
-      <button class="tf-btn" onclick="setTF(this,'5day','15min')">5D</button>
-      <button class="tf-btn" onclick="setTF(this,'1month','1h')">1M</button>
-      <button class="tf-btn" onclick="setTF(this,'3month','1day')">3M</button>
-      <button class="tf-btn" onclick="setTF(this,'1year','1week')">1Y</button>
-      <span style="margin-left:auto;font-size:9px" id="chartSrc" class="nt">Twelve Data · 15min delay</span>
+      <span style="color:var(--text3);font-size:9px;margin-right:2px;flex-shrink:0">TF:</span>
+      <button class="tf-btn active" onclick="setTF(this,'1day','1min')">1m</button>
+      <button class="tf-btn" onclick="setTF(this,'1day','5min')">5m</button>
+      <button class="tf-btn" onclick="setTF(this,'1day','15min')">15m</button>
+      <button class="tf-btn" onclick="setTF(this,'1day','30min')">30m</button>
+      <button class="tf-btn" onclick="setTF(this,'1day','1h')">1H</button>
+      <button class="tf-btn" onclick="setTF(this,'1month','4h')">4H</button>
+      <button class="tf-btn" onclick="setTF(this,'3month','1day')">1D</button>
+      <button class="tf-btn" onclick="setTF(this,'1year','1week')">1W</button>
+      <div class="tf-sep"></div>
+      <span style="color:var(--text3);font-size:9px;flex-shrink:0">TYPE:</span>
+      <button class="tf-btn active" id="typeCandle" onclick="setChartType('candlestick',this)">🕯 Candle</button>
+      <button class="tf-btn" id="typeLine" onclick="setChartType('line',this)">📈 Line</button>
+      <button class="tf-btn" id="typeBar" onclick="setChartType('bar',this)">▌Bar</button>
+      <div class="tf-sep"></div>
+      <span style="color:var(--text3);font-size:9px;flex-shrink:0">IND:</span>
+      <button class="ind-btn" id="indMA" onclick="toggleIndicator('MA')">MA</button>
+      <button class="ind-btn" id="indEMA" onclick="toggleIndicator('EMA')">EMA</button>
+      <button class="ind-btn" id="indBB" onclick="toggleIndicator('BB')">BB</button>
+      <button class="ind-btn" id="indVOL" onclick="toggleIndicator('VOL')">VOL</button>
+      <button class="ind-btn" id="indRSI" onclick="toggleIndicator('RSI')">RSI</button>
+      <div class="tf-sep"></div>
+      <span style="color:var(--text3);font-size:9px;flex-shrink:0">DRAW:</span>
+      <button class="draw-btn" id="drawHL" onclick="toggleDraw('hline')" title="Horizontal Line">— HL</button>
+      <button class="draw-btn" id="drawTL" onclick="toggleDraw('tline')" title="Trendline">↗ TL</button>
+      <button class="draw-btn" id="drawFIB" onclick="toggleDraw('fib')" title="Fibonacci">🌀 FIB</button>
+      <button class="draw-btn" onclick="clearDrawings()" title="Clear all drawings" style="color:var(--red)">✕ CLR</button>
+      <span style="margin-left:auto;font-size:9px;flex-shrink:0" id="chartSrc" class="nt">Twelve Data</span>
     </div>
-    <div class="chart-area"><canvas id="mainChart"></canvas></div>
+    <div class="chart-area" id="chartArea">
+      <div id="ohlcvBar" class="ohlcv-bar" style="display:none"></div>
+      <div id="lwChart"></div>
+    </div>
   </div>
   <div class="panel">
     <div class="ph"><span class="pt">NEWS FEED</span><span class="ps up" id="newsFeedStatus">● LIVE</span><span onclick="loadNewsManual()" style="color:var(--text3);font-size:9px;cursor:pointer;margin-left:4px" title="Refresh news">⟳</span></div>
@@ -656,7 +688,7 @@ const ECON = [
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let selected = null;
 let tfRange  = '1day';
-let tfIntvl  = '15min';
+let tfIntvl  = '1min';
 let myChart  = null;
 let tab      = 'all';
 let animArcs = [];
@@ -780,250 +812,254 @@ function timeAgo(ts){
   return Math.floor(d/86400)+'d ago';
 }
 
-// ─── TWELVE DATA: FETCH CHART ─────────────────────────────────────────────────
-async function fetchTDChart(tdSym) {
-  const cacheKey = tdSym + '_' + tfRange + '_' + tfIntvl;
-  if(chCache[cacheKey]) return chCache[cacheKey];
-  if(!TD_KEY) return null;
+// ─── CHART ENGINE: TradingView Lightweight Charts + Binance WS Live ──────────
+let lwc=null,lwSeries=null,lwVolSeries=null,lwRsiSeries=null,lwMaSeries=null,lwEmaSeries=null;
+let lwBb={},lwChartType='candlestick',lwDrawMode=null,lwDrawings=[],lwRawOHLC=[],lwCurrentSym=null,lwWs=null;
+let lwIndicators={MA:false,EMA:false,BB:false,VOL:false,RSI:false};
+const BI_INTVL={'1min':'1m','5min':'5m','15min':'15m','30min':'30m','1h':'1h','4h':'4h','1day':'1d','1week':'1w'};
+const BI_LIMIT={'1min':500,'5min':500,'15min':500,'30min':500,'1h':500,'4h':500,'1day':365,'1week':104};
+const BI_PAIRS={'BTC/USD':'BTCUSDT','ETH/USD':'ETHUSDT','SOL/USD':'SOLUSDT','BNB/USD':'BNBUSDT','XRP/USD':'XRPUSDT','DOGE/USD':'DOGEUSDT','ADA/USD':'ADAUSDT','AVAX/USD':'AVAXUSDT','DOT/USD':'DOTUSDT','LINK/USD':'LINKUSDT','MATIC/USD':'MATICUSDT','UNI/USD':'UNIUSDT'};
 
-  // Map range to outputsize (number of candles)
-  const sizeMap = {
-    '1day':   96,   // 1 day  x 96 x 15min bars
-    '5day':   160,  // 5 days x 32 x 15min bars
-    '1month': 480,  // 1 month x 1h bars (~20 trading days x 24)
-    '3month': 90,   // 3 months daily bars
-    '1year':  52,   // 1 year weekly bars
-  };
-  const outputsize = sizeMap[tfRange] || 96;
-
-  const d = await tdGet('time_series', {
-    symbol: tdSym,
-    interval: tfIntvl,
-    outputsize: outputsize,
-    order: 'ASC',
-    format: 'JSON',
-  });
-
-  if(!d || d.status==='error' || !d.values || !d.values.length) return null;
-
-  const isIntraday = tfIntvl.includes('min') || tfIntvl === '1h';
-  const dates = d.values.map(v => {
-    const dt = new Date(v.datetime);
-    if(isIntraday && tfRange === '1day') {
-      return dt.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
-    } else if(isIntraday) {
-      return dt.toLocaleDateString('id-ID',{month:'short',day:'numeric'}) + ' ' +
-             dt.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
-    }
-    return dt.toLocaleDateString('id-ID',{month:'short',day:'numeric'});
-  });
-  const prices = d.values.map(v => parseFloat(v.close));
-  // OHLC for candlestick
-  const ohlc = d.values.map(v => ({
-    x: new Date(v.datetime).getTime(),
-    o: parseFloat(v.open),
-    h: parseFloat(v.high),
-    l: parseFloat(v.low),
-    c: parseFloat(v.close),
-  }));
-
-  const result = {dates, prices, ohlc, meta: d.meta};
-  chCache[cacheKey] = result;
-  return result;
-}
-
-// ─── FALLBACK: GENERATE SIMULATED CHART ───────────────────────────────────────
-function generateSimChart(currentPrice, isUp, idr) {
-  const pts = {
-    '1day':32, '5day':160, '1month':480, '3month':90, '1year':52
-  }[tfRange] || 30;
-
-  const dates=[], prices=[];
-  let p = currentPrice * (isUp ? 0.92 : 1.08); // start from opposite direction
-  const vol = currentPrice * 0.012;
-  const drift = isUp ? 0.002 : -0.002;
-
-  for(let i=0; i<pts; i++){
-    const isIntra = tfIntvl.includes('min') || tfIntvl==='1h';
-    const msStep = isIntra ? (tfIntvl==='1h'?3600000:900000) : 86400000;
-    const d = new Date(Date.now() - (pts-i)*msStep);
-    if(!isIntra && (d.getDay()===0||d.getDay()===6)) continue;
-    if(d.getDay()===0||d.getDay()===6) continue;
-    dates.push(d.toLocaleDateString('id-ID',{month:'short',day:'numeric'}));
-    prices.push(parseFloat(p.toFixed(idr?0:4)));
-    p += p*(drift + (Math.random()-0.5)*0.025);
-    p = Math.max(currentPrice*0.6, Math.min(currentPrice*1.5, p));
-  }
-  if(prices.length > 0) prices[prices.length-1] = currentPrice;
-  // Generate OHLC from close prices
-  const ohlc = prices.map((c, i) => {
-    const prev = prices[i-1] || c;
-    const range = Math.abs(c - prev) * 1.5 + currentPrice * 0.003;
-    const o = prev;
-    const h = Math.max(o, c) + Math.random() * range * 0.5;
-    const l = Math.min(o, c) - Math.random() * range * 0.5;
-    return { x: Date.now() - (prices.length - i) * (tfIntvl==='1h'?3600000:900000), o, h, l, c };
-  });
-  return {dates, prices, ohlc, simulated:true};
-}
-
-// ─── RENDER CHART ─────────────────────────────────────────────────────────────
-async function renderChart(sym) {
-  const entry  = WL.find(w=>w.sym===sym);
-  const q      = qCache[sym];
-  const idr    = isIDR(sym);
-  const isUp   = (q?.dp||0) >= 0;
-
-  // Destroy existing chart safely
-  if(myChart) {
-    try { myChart.destroy(); } catch(e) {}
-    myChart = null;
-  }
-  // Re-create fresh canvas to avoid "already in use" error
-  const chartArea = document.querySelector('.chart-area');
-  if(!chartArea) return;
-  chartArea.innerHTML = '<canvas id="mainChart" style="display:block"></canvas>';
-  const canvas = document.getElementById('mainChart');
-  canvas.width  = chartArea.clientWidth - 8;
-  canvas.height = chartArea.clientHeight - 8;
-
-  document.getElementById('chartSrc').textContent = 'Loading...';
-  document.getElementById('chartSrc').style.color = 'var(--text3)';
-
-  let chartData = null;
-
-  // Try Twelve Data first
-  if(TD_KEY && entry?.td) {
-    chartData = await fetchTDChart(entry.td, 90);
-  }
-
-  // Fallback to simulation using live price
-  if(!chartData && q?.c) {
-    chartData = generateSimChart(q.c, isUp, idr);
-  }
-
-  if(!chartData) {
-    const ndc = document.getElementById('mainChart');
-    const ctx = ndc.getContext('2d');
-    ctx.clearRect(0,0,ndc.width,ndc.height);
-    ctx.fillStyle='#4a5a78'; ctx.font='11px IBM Plex Mono'; ctx.textAlign='center';
-    ctx.fillText('Chart tidak tersedia. Setup API key untuk data nyata.', ndc.width/2, ndc.height/2);
-    document.getElementById('chartSrc').textContent = 'No data';
-    document.getElementById('chartSrc').style.color = 'var(--red)';
-    return;
-  }
-
-  // Show source
-  if(chartData.simulated) {
-    document.getElementById('chartSrc').textContent = '⚠ Simulasi — setup API key untuk data nyata';
-    document.getElementById('chartSrc').style.color = 'var(--orange)';
-  } else {
-    document.getElementById('chartSrc').textContent = `✓ Twelve Data · ${tfIntvl} · ${chartData.prices.length} bars`;
-    document.getElementById('chartSrc').style.color = 'var(--green)';
-  }
-
-  const useCandle = chartData.ohlc && chartData.ohlc.length > 0 && typeof CandlestickController !== 'undefined';
-  if(useCandle) {
-    // ── Candlestick chart ──
-    myChart = new Chart(canvas.getContext('2d'), {
-      type: 'candlestick',
-      data: {
-        datasets:[{
-          label: entry?.label || sym,
-          data: chartData.ohlc,
-          color: {
-            up:   '#00d4a0',
-            down: '#ff4a6e',
-            unchanged: '#8a9ab8',
-          },
-          borderColor: {
-            up:   '#00d4a0',
-            down: '#ff4a6e',
-            unchanged: '#8a9ab8',
-          },
-        }]
-      },
-      options:{
-        responsive:false, animation:{duration:300},
-        plugins:{
-          legend:{display:false},
-          tooltip:{
-            backgroundColor:'#0f1218', borderColor:'#263040', borderWidth:1,
-            titleColor:'#f5a623', bodyColor:'#c8d4e8',
-            callbacks:{
-              label: ctx => {
-                const d = ctx.raw;
-                if(!d) return '';
-                return [
-                  ` O: ${fmtP(d.o,idr)}`,
-                  ` H: ${fmtP(d.h,idr)}`,
-                  ` L: ${fmtP(d.l,idr)}`,
-                  ` C: ${fmtP(d.c,idr)}`,
-                ];
-              }
-            }
-          }
-        },
-        scales:{
-          x:{
-            type:'timeseries',
-            display:true,
-            grid:{color:'#1a2030'},
-            ticks:{color:'#4a5a78',font:{family:'IBM Plex Mono',size:8},maxTicksLimit:10,maxRotation:0},
-            border:{display:false},
-            time:{ tooltipFormat:'HH:mm dd MMM' }
-          },
-          y:{
-            position:'right',
-            grid:{color:'#1a2030'},
-            ticks:{
-              color:'#4a5a78', font:{family:'IBM Plex Mono',size:9}, maxTicksLimit:6,
-              callback: v => idr ? v.toLocaleString('id-ID') : v>=1000?v.toFixed(0):v>=1?v.toFixed(2):v.toFixed(4)
-            },
-            border:{display:false}
-          }
-        },
-        interaction:{mode:'index',intersect:false}
-      }
+async function fetchBinanceKlines(sym,interval){
+  const pair=BI_PAIRS[sym];if(!pair)return null;
+  const intvl=BI_INTVL[interval]||'15m',limit=BI_LIMIT[interval]||500;
+  try{
+    const r=await fetch(`https://api.binance.com/api/v3/klines?symbol=${pair}&interval=${intvl}&limit=${limit}`,{signal:makeSignal(10000)});
+    if(!r.ok)return null;
+    const raw=await r.json();
+    if(!Array.isArray(raw)||!raw.length)return null;
+    const map=new Map();
+    raw.forEach(k=>{
+      const t=Math.floor(k[0]/1000),o=parseFloat(k[1]),h=parseFloat(k[2]),l=parseFloat(k[3]),c=parseFloat(k[4]),v=parseFloat(k[5]);
+      if(h>=Math.max(o,c)&&l<=Math.min(o,c)&&o>0&&c>0)map.set(t,{time:t,open:o,high:h,low:l,close:c,volume:v});
     });
-  } else {
-    // ── Fallback line chart (if financial plugin not loaded yet) ──
-    myChart = new Chart(canvas.getContext('2d'), {
-      type:'line',
-      data:{
-        labels: chartData.dates,
-        datasets:[{
-          data: chartData.prices,
-          borderColor: isUp ? '#00d4a0' : '#ff4a6e',
-          borderWidth: 1.5,
-          fill: true,
-          backgroundColor: isUp ? 'rgba(0,212,160,0.07)' : 'rgba(255,74,110,0.07)',
-          pointRadius: 0,
-          tension: 0.2,
-          spanGaps: true,
-        }]
-      },
-      options:{
-        responsive:false, animation:{duration:350},
-        plugins:{
-          legend:{display:false},
-          tooltip:{
-            backgroundColor:'#0f1218', borderColor:'#263040', borderWidth:1,
-            titleColor:'#f5a623', bodyColor:'#c8d4e8',
-            callbacks:{label:ctx=>' O:'+fmtP(ctx.parsed.y,idr)}
-          }
-        },
-        scales:{
-          x:{display:true,grid:{color:'#1a2030'},ticks:{color:'#4a5a78',font:{family:'IBM Plex Mono',size:8},maxTicksLimit:10,maxRotation:0},border:{display:false}},
-          y:{position:'right',grid:{color:'#1a2030'},ticks:{color:'#4a5a78',font:{family:'IBM Plex Mono',size:9},maxTicksLimit:6,callback:v=>idr?v.toLocaleString('id-ID'):v>=1000?v.toFixed(0):v>=1?v.toFixed(2):v.toFixed(4)},border:{display:false}}
-        },
-        interaction:{mode:'index',intersect:false}
-      }
-    });
-  }
+    const candles=Array.from(map.values()).sort((a,b)=>a.time-b.time);
+    return candles.length?candles:null;
+  }catch(e){console.warn('Binance REST:',e.message);return null;}
 }
 
-// ─── FETCH QUOTES (Finnhub) ───────────────────────────────────────────────────
+function connectBinanceWS(sym,interval){
+  if(lwWs){try{lwWs.close();}catch(e){}lwWs=null;}
+  const pair=BI_PAIRS[sym];if(!pair||!lwSeries)return;
+  const intvl=BI_INTVL[interval]||'15m';
+  try{
+    const ws=new WebSocket(`wss://stream.binance.com:9443/ws/${pair.toLowerCase()}@kline_${intvl}`);
+    lwWs=ws;
+    ws.onmessage=(e)=>{
+      try{
+        const k=JSON.parse(e.data).k;if(!k)return;
+        const c={time:Math.floor(k.t/1000),open:parseFloat(k.o),high:parseFloat(k.h),low:parseFloat(k.l),close:parseFloat(k.c),volume:parseFloat(k.v)};
+        if(c.high<Math.max(c.open,c.close)||c.low>Math.min(c.open,c.close))return;
+        if(lwSeries)try{lwSeries.update(c);}catch(e2){}
+        if(lwVolSeries)try{lwVolSeries.update({time:c.time,value:c.volume,color:c.close>=c.open?'rgba(0,212,160,0.5)':'rgba(255,74,110,0.5)'});}catch(e2){}
+        if(lwRawOHLC.length){const last=lwRawOHLC[lwRawOHLC.length-1];if(last.time===c.time)lwRawOHLC[lwRawOHLC.length-1]=c;else if(c.time>last.time&&k.x)lwRawOHLC.push(c);}
+        const q2=qCache[sym];if(q2){q2.c=c.close;const p=document.getElementById('cprice');if(p)p.textContent=fmtP(c.close,isIDR(sym));}
+        const s=document.getElementById('chartSrc');
+        if(s){s.textContent=`● Binance WS · ${intvl.toUpperCase()} · ${new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}`;s.style.color='var(--green)';}
+      }catch(e2){}
+    };
+    ws.onclose=()=>{if(lwWs===ws&&lwCurrentSym===sym)setTimeout(()=>connectBinanceWS(sym,interval),3000);};
+  }catch(e){console.warn('WS:',e.message);}
+}
+
+async function fetchTDChartOHLC(tdSym,interval){
+  const key=tdSym+'_'+interval;if(chCache[key])return chCache[key];if(!TD_KEY)return null;
+  const sz={'1min':390,'5min':390,'15min':300,'30min':200,'1h':300,'4h':300,'1day':300,'1week':104};
+  const d=await tdGet('time_series',{symbol:tdSym,interval,outputsize:sz[interval]||96,order:'ASC',format:'JSON'});
+  if(!d||d.status==='error'||!d.values?.length)return null;
+  const map=new Map();
+  d.values.forEach(v=>{
+    const t=Math.floor(new Date(v.datetime).getTime()/1000),o=parseFloat(v.open),h=parseFloat(v.high),l=parseFloat(v.low),c=parseFloat(v.close);
+    if(h>=Math.max(o,c)&&l<=Math.min(o,c)&&o>0)map.set(t,{time:t,open:o,high:h,low:l,close:c,volume:parseFloat(v.volume||0)});
+  });
+  const res=Array.from(map.values()).sort((a,b)=>a.time-b.time);
+  if(res.length)chCache[key]=res;return res.length?res:null;
+}
+
+function generateSimOHLC(currentPrice,isUp){
+  const ms={'1week':604800000,'1day':86400000,'4h':14400000,'1h':3600000,'30min':1800000,'5min':300000,'1min':60000}[tfIntvl]||900000;
+  const count=300,drift=isUp?0.0015:-0.0015;
+  let p=currentPrice*(isUp?0.88:1.12),t=Math.floor(Date.now()/1000)-count*Math.floor(ms/1000);
+  t=t-(t%Math.floor(ms/1000));
+  const c=[];
+  for(let i=0;i<count;i++){
+    const o=p,mv=p*(drift+(Math.random()-0.49)*0.025);
+    const cl=Math.max(currentPrice*0.5,Math.min(currentPrice*1.5,p+mv));
+    c.push({time:t,open:+o.toFixed(8),high:+(Math.max(o,cl)*(1+Math.random()*0.006)).toFixed(8),low:+(Math.min(o,cl)*(1-Math.random()*0.006)).toFixed(8),close:+cl.toFixed(8),volume:Math.random()*500+10});
+    p=cl;t+=Math.floor(ms/1000);
+  }
+  c[c.length-1].close=currentPrice;return c;
+}
+
+function calcSMA(d,n){return d.map((_,i)=>i<n-1?null:{time:d[i].time,value:d.slice(i-n+1,i+1).reduce((a,b)=>a+b.close,0)/n}).filter(Boolean);}
+function calcEMA(d,n){const k=2/(n+1);let e=null;return d.map(x=>{e=e===null?x.close:x.close*k+e*(1-k);return{time:x.time,value:e};});}
+function calcBB(d,n=20,m=2){const u=[],mid=[],l=[];d.forEach((_,i)=>{if(i<n-1)return;const s=d.slice(i-n+1,i+1),a=s.reduce((x,y)=>x+y.close,0)/n,std=Math.sqrt(s.reduce((x,y)=>x+Math.pow(y.close-a,2),0)/n);u.push({time:d[i].time,value:a+m*std});mid.push({time:d[i].time,value:a});l.push({time:d[i].time,value:a-m*std});});return{upper:u,middle:mid,lower:l};}
+function calcRSI(d,n=14){if(d.length<n+1)return[];let g=0,ls=0;for(let i=1;i<=n;i++){const x=d[i].close-d[i-1].close;if(x>0)g+=x;else ls+=Math.abs(x);}let ag=g/n,al=ls/n;const r=[];for(let i=n;i<d.length;i++){if(i>n){const x=d[i].close-d[i-1].close;ag=(ag*(n-1)+Math.max(0,x))/n;al=(al*(n-1)+Math.max(0,-x))/n;}r.push({time:d[i].time,value:100-(100/(1+(al===0?100:ag/al)))});}return r;}
+function calcVolume(d){return d.map(x=>({time:x.time,value:x.volume,color:x.close>=x.open?'rgba(0,212,160,0.5)':'rgba(255,74,110,0.5)'}));}
+
+async function renderChart(sym){
+  lwCurrentSym=sym;
+  if(lwWs){try{lwWs.close();}catch(e){}lwWs=null;}
+  const entry=WL.find(w=>w.sym===sym),q=qCache[sym],idr=isIDR(sym),isUp=(q?.dp||0)>=0;
+  const srcEl=document.getElementById('chartSrc');
+  srcEl.textContent='Loading...';srcEl.style.color='var(--text3)';
+  let ohlc=null,dataSource='',isBinance=false;
+  ohlc=await fetchBinanceKlines(sym,tfIntvl);
+  if(ohlc){dataSource=`● Binance · ${BI_INTVL[tfIntvl]||tfIntvl} · ${ohlc.length} bars`;isBinance=true;}
+  if(!ohlc&&TD_KEY&&entry?.td){ohlc=await fetchTDChartOHLC(entry.td,tfIntvl);if(ohlc)dataSource=`✓ Twelve Data · ${tfIntvl} · ${ohlc.length} bars`;}
+  if(!ohlc&&q?.c){ohlc=generateSimOHLC(q.c,isUp);dataSource=`⚠ Simulasi · ${ohlc.length} bars`;}
+  if(!ohlc||!ohlc.length){srcEl.textContent='✕ No data';srcEl.style.color='var(--red)';return;}
+  lwRawOHLC=ohlc;
+  srcEl.textContent=dataSource;srcEl.style.color=isBinance?'var(--green)':dataSource.startsWith('✓')?'var(--cyan)':'var(--orange)';
+  const container=document.getElementById('lwChart'),area=document.getElementById('chartArea');
+  if(!container||!area)return;
+  if(lwc){try{lwc.remove();}catch(e){}lwc=null;}
+  lwSeries=lwVolSeries=lwRsiSeries=lwMaSeries=lwEmaSeries=null;lwBb={};lwDrawings=[];container.innerHTML='';
+  const showVol=lwIndicators.VOL,showRSI=lwIndicators.RSI;
+  lwc=LightweightCharts.createChart(container,{
+    width:area.clientWidth||600,height:area.clientHeight||300,
+    layout:{background:{type:'solid',color:'#0a0c0f'},textColor:'#4a5a78',fontSize:10,fontFamily:'IBM Plex Mono, monospace'},
+    grid:{vertLines:{color:'#141820',style:1},horzLines:{color:'#141820',style:1}},
+    crosshair:{mode:LightweightCharts.CrosshairMode.Normal,vertLine:{color:'#4a5a78',width:1,style:1,labelBackgroundColor:'#1a2030'},horzLine:{color:'#4a5a78',width:1,style:1,labelBackgroundColor:'#1a2030'}},
+    rightPriceScale:{borderColor:'#1e2535',textColor:'#4a5a78',scaleMargins:{top:0.05,bottom:showVol||showRSI?0.28:0.04}},
+    timeScale:{borderColor:'#1e2535',textColor:'#4a5a78',timeVisible:true,secondsVisible:false,rightOffset:5,barSpacing:6,lockVisibleTimeRangeOnResize:true},
+    handleScroll:{vertTouchDrag:true},handleScale:{axisPressedMouseMove:true,pinch:true,wheel:true},
+  });
+  if(lwChartType==='candlestick')lwSeries=lwc.addCandlestickSeries({upColor:'#00d4a0',downColor:'#ff4a6e',borderUpColor:'#00d4a0',borderDownColor:'#ff4a6e',wickUpColor:'#00d4a0',wickDownColor:'#ff4a6e'});
+  else if(lwChartType==='bar')lwSeries=lwc.addBarSeries({upColor:'#00d4a0',downColor:'#ff4a6e'});
+  else lwSeries=lwc.addLineSeries({color:isUp?'#00d4a0':'#ff4a6e',lineWidth:2,crosshairMarkerVisible:true});
+  try{lwSeries.setData(ohlc);}catch(e){srcEl.textContent='✕ '+e.message;srcEl.style.color='var(--red)';return;}
+  const pp=idr?0:q?.c>1000?2:q?.c>1?4:6;
+  lwSeries.applyOptions({priceFormat:{type:'price',precision:pp,minMove:idr?1:Math.pow(10,-pp)}});
+  if(showVol)_applyVolume(ohlc);if(showRSI)_applyRSI(ohlc);
+  if(lwIndicators.MA)_applyMA(ohlc);if(lwIndicators.EMA)_applyEMA(ohlc);if(lwIndicators.BB)_applyBB(ohlc);
+  const ohlcvBar=document.getElementById('ohlcvBar');
+  lwc.subscribeCrosshairMove(param=>{
+    if(!param.time||!ohlcvBar){if(ohlcvBar)ohlcvBar.style.display='none';return;}
+    const d=param.seriesData.get(lwSeries);if(!d){ohlcvBar.style.display='none';return;}
+    const o=d.open??d.value,h=d.high??d.value,l=d.low??d.value,c=d.close??d.value;
+    const clr=c>=o?'#00d4a0':'#ff4a6e';
+    const fmt=v=>idr?Math.round(v).toLocaleString('id-ID'):v>=10000?v.toFixed(2):v>=1?v.toFixed(4):v.toFixed(6);
+    ohlcvBar.style.display='flex';
+    ohlcvBar.innerHTML=`<span>O:<b style="color:${clr}">${fmt(o)}</b></span><span>H:<b style="color:${clr}">${fmt(h)}</b></span><span>L:<b style="color:${clr}">${fmt(l)}</b></span><span>C:<b style="color:${clr}">${fmt(c)}</b></span>`;
+    if(lwVolSeries&&param.seriesData.get(lwVolSeries)){const v=param.seriesData.get(lwVolSeries).value;ohlcvBar.innerHTML+=`<span>V:<b style="color:#8a9ab8">${v>=1e9?(v/1e9).toFixed(2)+'B':v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':v.toFixed(0)}</b></span>`;}
+  });
+  lwc.subscribeClick(param=>{
+    if(!lwDrawMode||!param.time)return;
+    const price=lwSeries.coordinateToPrice(param.point.y);
+    if(lwDrawMode==='hline')_addHLine(price);else if(lwDrawMode==='tline')_handleTlineClick(param.time,price);else if(lwDrawMode==='fib')_handleFibClick(param.time,price);
+  });
+  lwc.timeScale().fitContent();
+  if(window._lwResizeObs)window._lwResizeObs.disconnect();
+  window._lwResizeObs=new ResizeObserver(()=>{if(lwc&&area)lwc.applyOptions({width:area.clientWidth,height:area.clientHeight});});
+  window._lwResizeObs.observe(area);
+  if(isBinance)connectBinanceWS(sym,tfIntvl);
+}
+
+
+// ─── INDICATOR APPLIERS ───────────────────────────────────────────────────────
+function _applyVolume(ohlc){
+  if(lwVolSeries){try{lwc.removeSeries(lwVolSeries);}catch(e){}}
+  lwVolSeries=lwc.addHistogramSeries({color:'rgba(0,212,160,0.4)',priceFormat:{type:'volume'},priceScaleId:'vol'});
+  lwVolSeries.priceScale().applyOptions({scaleMargins:{top:0.8,bottom:0}});
+  lwVolSeries.setData(calcVolume(ohlc));
+}
+function _applyRSI(ohlc){
+  if(lwRsiSeries){try{lwc.removeSeries(lwRsiSeries);}catch(e){}}
+  lwRsiSeries=lwc.addLineSeries({color:'#a855f7',lineWidth:1,priceScaleId:'rsi'});
+  lwRsiSeries.priceScale().applyOptions({scaleMargins:{top:0.75,bottom:0.05}});
+  lwRsiSeries.setData(calcRSI(ohlc));
+  [70,30].forEach(lv=>{
+    if(ohlc.length<2)return;
+    lwc.addLineSeries({color:lv===70?'rgba(255,74,110,0.3)':'rgba(0,212,160,0.3)',lineWidth:1,lineStyle:2,priceScaleId:'rsi',lastValueVisible:false,crosshairMarkerVisible:false})
+      .setData([{time:ohlc[0].time,value:lv},{time:ohlc[ohlc.length-1].time,value:lv}]);
+  });
+}
+function _applyMA(ohlc){
+  if(lwMaSeries){try{lwc.removeSeries(lwMaSeries);}catch(e){}}
+  lwMaSeries=lwc.addLineSeries({color:'#f5a623',lineWidth:1,lastValueVisible:true,crosshairMarkerVisible:false,title:'MA20'});
+  lwMaSeries.setData(calcSMA(ohlc,20));
+}
+function _applyEMA(ohlc){
+  if(lwEmaSeries){try{lwc.removeSeries(lwEmaSeries);}catch(e){}}
+  lwEmaSeries=lwc.addLineSeries({color:'#4a9eff',lineWidth:1,lastValueVisible:true,crosshairMarkerVisible:false,title:'EMA20'});
+  lwEmaSeries.setData(calcEMA(ohlc,20));
+}
+function _applyBB(ohlc){
+  const{upper,middle,lower}=calcBB(ohlc,20,2);
+  if(lwBb.upper){try{lwc.removeSeries(lwBb.upper);lwc.removeSeries(lwBb.middle);lwc.removeSeries(lwBb.lower);}catch(e){}}
+  const opt={lineWidth:1,lastValueVisible:false,crosshairMarkerVisible:false};
+  lwBb.upper=lwc.addLineSeries({...opt,color:'rgba(168,85,247,0.6)',title:'BB+'});
+  lwBb.middle=lwc.addLineSeries({...opt,color:'rgba(168,85,247,0.3)'});
+  lwBb.lower=lwc.addLineSeries({...opt,color:'rgba(168,85,247,0.6)',title:'BB-'});
+  lwBb.upper.setData(upper);lwBb.middle.setData(middle);lwBb.lower.setData(lower);
+}
+
+// ─── DRAWING TOOLS ────────────────────────────────────────────────────────────
+let _tlPoints=[],_fibPoints=[];
+function _addHLine(price){
+  if(!lwc||!lwRawOHLC.length)return;
+  const s=lwc.addLineSeries({color:'#f5a623',lineWidth:1,lineStyle:2,lastValueVisible:true,crosshairMarkerVisible:false,title:fmtP(price,false)});
+  s.setData([{time:lwRawOHLC[0].time,value:price},{time:lwRawOHLC[lwRawOHLC.length-1].time,value:price}]);
+  lwDrawings.push({type:'hline',series:s});toast('Horizontal line @ '+fmtP(price,false));
+}
+function _handleTlineClick(time,price){
+  _tlPoints.push({time,price});
+  if(_tlPoints.length===2){
+    const[p1,p2]=_tlPoints;
+    const s=lwc.addLineSeries({color:'#00c8e8',lineWidth:1,lastValueVisible:false,crosshairMarkerVisible:false});
+    s.setData([{time:p1.time,value:p1.price},{time:p2.time,value:p2.price}]);
+    lwDrawings.push({type:'tline',series:s});_tlPoints=[];toast('Trendline drawn');
+  }else toast('Click second point...');
+}
+function _handleFibClick(time,price){
+  _fibPoints.push({time,price});
+  if(_fibPoints.length===2){
+    const[p1,p2]=_fibPoints;
+    const hi=Math.max(p1.price,p2.price),lo=Math.min(p1.price,p2.price),range=hi-lo;
+    const t1=Math.min(p1.time,p2.time),t2=Math.max(p1.time,p2.time);
+    [0,0.236,0.382,0.5,0.618,0.786,1].forEach((lv,i)=>{
+      const s=lwc.addLineSeries({color:['#ff4a6e','#f5a623','#ffd700','#00d4a0','#4a9eff','#a855f7','#ff4a6e'][i],lineWidth:1,lineStyle:2,lastValueVisible:true,crosshairMarkerVisible:false,title:(lv*100).toFixed(1)+'%'});
+      s.setData([{time:t1,value:hi-range*lv},{time:t2,value:hi-range*lv}]);
+      lwDrawings.push({type:'fib',series:s});
+    });
+    _fibPoints=[];toast('Fibonacci drawn');
+  }else toast('Click second point...');
+}
+function clearDrawings(){
+  lwDrawings.forEach(d=>{try{lwc.removeSeries(d.series);}catch(e){}});
+  lwDrawings=[];_tlPoints=[];_fibPoints=[];toast('Drawings cleared');
+}
+
+// ─── CHART TYPE + INDICATORS + DRAW MODE ─────────────────────────────────────
+function setChartType(type,btn){
+  lwChartType=type;
+  document.querySelectorAll('#typeCandle,#typeLine,#typeBar').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  if(lwCurrentSym)renderChart(lwCurrentSym);
+}
+function toggleIndicator(ind){
+  lwIndicators[ind]=!lwIndicators[ind];
+  const btn=document.getElementById('ind'+ind);
+  if(btn)btn.classList.toggle('active',lwIndicators[ind]);
+  if(!lwc||!lwRawOHLC.length)return;
+  if(ind==='MA'){if(lwIndicators.MA)_applyMA(lwRawOHLC);else if(lwMaSeries){try{lwc.removeSeries(lwMaSeries);}catch(e){}lwMaSeries=null;}}
+  else if(ind==='EMA'){if(lwIndicators.EMA)_applyEMA(lwRawOHLC);else if(lwEmaSeries){try{lwc.removeSeries(lwEmaSeries);}catch(e){}lwEmaSeries=null;}}
+  else if(ind==='BB'){if(lwIndicators.BB)_applyBB(lwRawOHLC);else{['upper','middle','lower'].forEach(k=>{if(lwBb[k])try{lwc.removeSeries(lwBb[k]);}catch(e){});lwBb={};}}
+  }else if(lwCurrentSym)renderChart(lwCurrentSym);
+}
+function toggleDraw(mode){
+  const was=lwDrawMode===mode;lwDrawMode=was?null:mode;_tlPoints=[];_fibPoints=[];
+  document.querySelectorAll('.draw-btn').forEach(b=>b.classList.remove('active'));
+  if(!was){const m={hline:'drawHL',tline:'drawTL',fib:'drawFIB'};const el=document.getElementById(m[mode]);if(el)el.classList.add('active');toast({hline:'Click to place H-line',tline:'Click 2 points for trendline',fib:'Click 2 points for Fibonacci'}[mode]);}
+  const ca=document.getElementById('chartArea');if(ca)ca.style.cursor=lwDrawMode?'crosshair':'default';
+}
+function setTF(btn,range,interval){
+  document.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');tfRange=range;tfIntvl=interval;chCache={};
+  if(selected)renderChart(selected);
+}
+
 async function fetchQuote(sym) {
   // Try Yahoo Finance first
   const yfData = await fetchYFQuotes([sym]);
@@ -1385,14 +1421,6 @@ function renderEcon(){
         <span>FORE: <span style="color:var(--cyan)">${e.fore}</span></span>
       </div>
     </div>`).join('');
-}
-
-// ─── TIMEFRAME ────────────────────────────────────────────────────────────────
-function setTF(btn, range, interval){
-  document.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  tfRange=range; tfIntvl=interval;
-  if(selected) renderChart(selected);
 }
 
 // ─── TAB ─────────────────────────────────────────────────────────────────────
@@ -2011,11 +2039,27 @@ async function init(){
     }
   },30000);
 
-  // Refresh chart tiap 10 menit (hemat API credit)
+  // Refresh chart tiap 5 menit (hemat API credit)
   setInterval(()=>{
     if(selected){ chCache={}; renderChart(selected); }
     if(currentView==='heatmap') { heatData={}; renderHeatmap(); }
-  },900000); // 15 min refresh
+  }, 300000); // 5 min
+
+  // Live candle tail update setiap 15 detik (update candle terakhir saja)
+  setInterval(async () => {
+    if(!selected || !lwSeries || !lwRawOHLC.length) return;
+    const q = qCache[selected];
+    if(!q?.c) return;
+    // Update close of last candle to current price
+    const last = lwRawOHLC[lwRawOHLC.length - 1];
+    const updated = {
+      ...last,
+      close: q.c,
+      high:  Math.max(last.high, q.c),
+      low:   Math.min(last.low, q.c),
+    };
+    try { lwSeries.update(updated); } catch(e) {}
+  }, 15000);
 
   // Refresh sentiment every 60s
   setInterval(()=>{
