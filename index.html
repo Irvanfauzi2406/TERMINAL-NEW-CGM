@@ -1045,8 +1045,10 @@ function toggleIndicator(ind){
   if(!lwc||!lwRawOHLC.length)return;
   if(ind==='MA'){if(lwIndicators.MA)_applyMA(lwRawOHLC);else if(lwMaSeries){try{lwc.removeSeries(lwMaSeries);}catch(e){}lwMaSeries=null;}}
   else if(ind==='EMA'){if(lwIndicators.EMA)_applyEMA(lwRawOHLC);else if(lwEmaSeries){try{lwc.removeSeries(lwEmaSeries);}catch(e){}lwEmaSeries=null;}}
-  else if(ind==='BB'){if(lwIndicators.BB)_applyBB(lwRawOHLC);else{['upper','middle','lower'].forEach(k=>{if(lwBb[k])try{lwc.removeSeries(lwBb[k]);}catch(e){});lwBb={};}}
-  }else if(lwCurrentSym)renderChart(lwCurrentSym);
+  else if(ind==='BB'){
+    if(lwIndicators.BB) _applyBB(lwRawOHLC);
+    else { ['upper','middle','lower'].forEach(k=>{ if(lwBb[k]) try{lwc.removeSeries(lwBb[k]);}catch(e){} }); lwBb={}; }
+  } else if(lwCurrentSym) renderChart(lwCurrentSym);
 }
 function toggleDraw(mode){
   const was=lwDrawMode===mode;lwDrawMode=was?null:mode;_tlPoints=[];_fibPoints=[];
