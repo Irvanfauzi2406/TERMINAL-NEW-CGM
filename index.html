@@ -249,7 +249,13 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
 .an-chart-wrap{
   flex:1;position:relative;min-width:0;background:var(--bg);
 }
-#anChart{ width:100%;height:100%; }
+#anChart{ width:100%;height:100%;position:relative;z-index:1; }
+/* Drawing canvas sits on top of LW chart, captures mouse when tool active */
+#anCanvas{
+  position:absolute;inset:0;z-index:6;
+  pointer-events:none;
+}
+#anCanvas.active{ pointer-events:all;cursor:crosshair; }
 .an-ohlcv{
   position:absolute;top:8px;left:10px;z-index:10;
   font-size:10px;font-family:var(--mono);color:var(--text3);
@@ -856,6 +862,7 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
     <div class="an-chart-wrap cursor-default" id="anChartWrap">
       <div id="anOhlcv" class="an-ohlcv" style="display:none"></div>
       <div id="anChart"></div>
+      <canvas id="anCanvas"></canvas>
     </div>
 
     <!-- RIGHT INFO PANEL -->
@@ -2399,526 +2406,424 @@ let anBb       = {};
 let anRawOHLC  = [];
 let anWs       = null;   // dedicated WS for analysis
 let anTool     = 'pointer';
-let anDrawings = [];     // {id, type, series/objects, label}
-let anTlPts    = [];     // points for multi-click tools
-let anChartType= 'candlestick';
-let anInterval = '1min';
-let anSym      = null;
-let anIndicators = {MA:false,EMA:false,BB:false,VOL:false,RSI:false,MACD:false,STOCH:false};
 
-// ── Keyboard shortcuts ──────────────────────────────────────────────────
-document.addEventListener('keydown', e => {
-  if(!document.getElementById('analysisOverlay').classList.contains('open')) return;
-  const map = { 'h':'hline','t':'tline','f':'fib','r':'rect','v':'pointer',
-                'm':'measure','l':'text','a':'pitchfork' };
-  if(e.key === 'Escape'){ anSetTool('pointer'); return; }
-  if(e.ctrlKey && e.key==='z'){ anUndo(); return; }
-  if(map[e.key.toLowerCase()] && !e.ctrlKey) anSetTool(map[e.key.toLowerCase()]);
-});
+// ═══════════════════════════════════════════════════════════════════════
+// CANVAS DRAWING ENGINE — Proper TradingView-style drawing overlay
+// ═══════════════════════════════════════════════════════════════════════
+let anDrawings  = [];
+let anDraftPts  = [];
+let anMousePos  = {x:0,y:0};
+let anCtx       = null;
+let anCanvas_   = null;
 
-// ── Open/close overlay ──────────────────────────────────────────────────
-function openAnalysis() {
-  if(!selected){ toast('Pilih symbol terlebih dahulu'); return; }
-  const overlay = document.getElementById('analysisOverlay');
-  overlay.classList.add('open');
-  anSym = selected;
-  const entry = WL.find(w=>w.sym===selected);
-  const q = qCache[selected];
-  const idr = isIDR(selected);
-  document.getElementById('anSymLabel').textContent = entry?.label || selected;
-  document.getElementById('anSymFull').textContent  = entry?.name  || '';
-  if(q?.c){
-    document.getElementById('anPrice').textContent = fmtP(q.c, idr);
-    const el = document.getElementById('anChg');
-    el.textContent = `${q.dp>=0?'+':''}${q.dp?.toFixed(2)}%`;
-    el.className = 'cchg '+(q.dp>=0?'up':'dn');
-  }
-  // 52W stats
-  if(q?.h) document.getElementById('anW52H').textContent = fmtP(q.h*1.15, idr);
-  if(q?.l) document.getElementById('anW52L').textContent = fmtP(q.l*0.85, idr);
-  if(q?.c) document.getElementById('anATH').textContent  = fmtP(q.c*1.32, idr);
-  setTimeout(() => anInitChart(), 80);
-}
+const AN_COLORS = {
+  hline:'#f5a623',vline:'#4a9eff',tline:'#00c8e8',ray:'#00d4a0',
+  extended:'#a855f7',channel:'#00c8e8',rect:'#00c8e8',
+  triangle:'#a855f7',ellipse:'#00d4a0',
+  fib:'#f5a623',fibext:'#4a9eff',fibfan:'#a855f7',
+  pitchfork:'#a855f7',text:'#00c8e8',arrow:'#00d4a0',measure:'#ffd700',
+  headshoulders:'#f5a623',xabcd:'#00c8e8',
+};
+const FIB_LEVELS    = [0,0.236,0.382,0.5,0.618,0.786,1];
+const FIBEXT_LEVELS = [0,0.618,1,1.272,1.414,1.618,2.618];
+const FIB_COLORS    = ['#ff4a6e','#f5a623','#ffd700','#4a9eff','#00d4a0','#a855f7','#ff4a6e'];
 
-function closeAnalysis() {
-  document.getElementById('analysisOverlay').classList.remove('open');
-  if(anWs){ try{anWs.close();}catch(e){} anWs=null; }
-  if(anChart){ try{anChart.remove();}catch(e){} anChart=null; }
-  anSeries=anVolSer=anRsiSer=anMaSer=anEmaSer=anMacdSer=anMacdSig=anMacdHist=anStochK=anStochD=null;
-  anBb={}; anDrawings=[]; anTlPts=[]; anRawOHLC=[];
-  anRenderDrawingsList();
-}
-
-// ── Init chart ───────────────────────────────────────────────────────────
-async function anInitChart() {
-  const container = document.getElementById('anChart');
-  const wrap      = document.getElementById('anChartWrap');
-  if(!container || !wrap) return;
-  if(anChart){ try{anChart.remove();}catch(e){} anChart=null; }
-  if(anWs){ try{anWs.close();}catch(e){} anWs=null; }
-  anSeries=anVolSer=anRsiSer=anMaSer=anEmaSer=anMacdSer=anMacdSig=anMacdHist=anStochK=anStochD=null;
-  anBb={}; container.innerHTML='';
-
-  const idr = isIDR(anSym);
-  const q   = qCache[anSym];
-  const isUp = (q?.dp||0) >= 0;
-
-  // Fetch data — Binance first, then TD, then sim
-  let ohlc = await fetchBinanceKlines(anSym, anInterval);
-  if(!ohlc && TD_KEY){ const e=WL.find(w=>w.sym===anSym); if(e?.td) ohlc=await fetchTDChartOHLC(e.td,anInterval); }
-  if(!ohlc && q?.c)  ohlc = generateSimOHLC(q.c, isUp);
-  if(!ohlc||!ohlc.length) return;
-  anRawOHLC = ohlc;
-
-  // Update 52W high/low from actual data
-  const highs = ohlc.map(c=>c.high), lows = ohlc.map(c=>c.low);
-  document.getElementById('anW52H').textContent = fmtP(Math.max(...highs), idr);
-  document.getElementById('anW52L').textContent = fmtP(Math.min(...lows), idr);
-
-  const showVol  = anIndicators.VOL;
-  const showRSI  = anIndicators.RSI;
-  const showMACD = anIndicators.MACD;
-  const showSTOCH= anIndicators.STOCH;
-  const subPanes = [showVol, showRSI, showMACD, showSTOCH].filter(Boolean).length;
-  const mainBottom = subPanes > 0 ? 0.22 + subPanes*0.04 : 0.04;
-
-  anChart = LightweightCharts.createChart(container, {
-    width:  wrap.clientWidth,
-    height: wrap.clientHeight,
-    layout:{ background:{type:'solid',color:'#0a0c0f'}, textColor:'#4a5a78', fontSize:10, fontFamily:'IBM Plex Mono, monospace' },
-    grid:{ vertLines:{color:'#141820',style:1}, horzLines:{color:'#141820',style:1} },
-    crosshair:{ mode:LightweightCharts.CrosshairMode.Normal,
-      vertLine:{color:'#4a5a78',width:1,style:1,labelBackgroundColor:'#1a2030'},
-      horzLine:{color:'#4a5a78',width:1,style:1,labelBackgroundColor:'#1a2030'} },
-    rightPriceScale:{ borderColor:'#1e2535', textColor:'#4a5a78', scaleMargins:{top:0.05, bottom:mainBottom} },
-    timeScale:{ borderColor:'#1e2535', textColor:'#4a5a78', timeVisible:true, secondsVisible:false, rightOffset:8, barSpacing:8 },
-    handleScroll:{vertTouchDrag:true}, handleScale:{axisPressedMouseMove:true,pinch:true,wheel:true},
+function anSetupCanvas(){
+  anCanvas_=document.getElementById('anCanvas');
+  const wrap=document.getElementById('anChartWrap');
+  if(!anCanvas_||!wrap)return;
+  anCanvas_.width=wrap.clientWidth;
+  anCanvas_.height=wrap.clientHeight;
+  anCtx=anCanvas_.getContext('2d');
+  anCanvas_.addEventListener('mousemove',e=>{
+    const r=anCanvas_.getBoundingClientRect();
+    anMousePos={x:e.clientX-r.left,y:e.clientY-r.top};
+    anRedraw();
   });
+  anCanvas_.addEventListener('click',e=>{
+    if(anTool==='pointer')return;
+    const r=anCanvas_.getBoundingClientRect();
+    anCanvasClick(e.clientX-r.left,e.clientY-r.top);
+  });
+  anCanvas_.addEventListener('dblclick',e=>{
+    if(['headshoulders','xabcd'].includes(anTool)&&anDraftPts.length>=3)anFinishDrawing();
+  });
+  anCanvas_.addEventListener('contextmenu',e=>{
+    e.preventDefault();anDraftPts=[];anRedraw();toast('Drawing cancelled');
+  });
+}
 
-  // Main series
-  if(anChartType==='candlestick'){
-    anSeries = anChart.addCandlestickSeries({upColor:'#00d4a0',downColor:'#ff4a6e',borderUpColor:'#00d4a0',borderDownColor:'#ff4a6e',wickUpColor:'#00d4a0',wickDownColor:'#ff4a6e'});
-  } else if(anChartType==='bar'){
-    anSeries = anChart.addBarSeries({upColor:'#00d4a0',downColor:'#ff4a6e'});
-  } else {
-    anSeries = anChart.addLineSeries({color:isUp?'#00d4a0':'#ff4a6e',lineWidth:2});
+function anTP(pt){
+  const x=pt.x!==undefined?pt.x:anTimeToX(pt.time);
+  const y=pt.y!==undefined?pt.y:anPriceToY(pt.price);
+  return{x,y};
+}
+function anTimeToX(t){try{return anChart.timeScale().timeToCoordinate(t);}catch(e){return null;}}
+function anPriceToY(p){try{return anSeries.priceToCoordinate(p);}catch(e){return null;}}
+function anXToTime(x){try{return anChart.timeScale().coordinateToTime(x);}catch(e){return null;}}
+function anYToPrice(y){try{return anSeries.coordinateToPrice(y);}catch(e){return null;}}
+
+function anCanvasClick(x,y){
+  const time=anXToTime(x),price=anYToPrice(y);
+  if(time===null||price===null)return;
+  if(anTool==='text'){
+    const txt=prompt('Label text:','Level');
+    if(!txt)return;
+    anDrawings.push({id:Date.now()+'',type:'text',pts:[{time,price}],opts:{text:txt},label:'Text: '+txt});
+    anRenderDrawingsList();anRedraw();return;
   }
-  anSeries.setData(ohlc);
-  const pp = idr?0:q?.c>1000?2:q?.c>1?4:6;
-  anSeries.applyOptions({priceFormat:{type:'price',precision:pp,minMove:idr?1:Math.pow(10,-pp)}});
+  anDraftPts.push({time,price,x,y});
+  if(anTool==='hline'||anTool==='vline'){anFinishDrawing();return;}
+  const two=['tline','ray','extended','fib','fibext','fibfan','channel','rect','ellipse','measure','arrow'];
+  if(two.includes(anTool)&&anDraftPts.length>=2){anFinishDrawing();return;}
+  if(anTool==='triangle'&&anDraftPts.length>=3){anFinishDrawing();return;}
+  if(anTool==='pitchfork'&&anDraftPts.length>=3){anFinishDrawing();return;}
+  const multi={'headshoulders':5,'xabcd':5};
+  if(multi[anTool]&&anDraftPts.length>=multi[anTool]){anFinishDrawing();return;}
+  const need={'tline':2,'ray':2,'extended':2,'fib':2,'fibext':2,'fibfan':2,'channel':2,'rect':2,'ellipse':2,'triangle':3,'pitchfork':3,'measure':2,'arrow':2,'headshoulders':5,'xabcd':5};
+  toast(`Point ${anDraftPts.length}/${need[anTool]||2} — click next point (right-click cancel)`);
+  anRedraw();
+}
 
-  // Apply indicators
-  if(showVol)  anApplyVol(ohlc);
-  if(showRSI)  anApplyRSI(ohlc);
-  if(showMACD) anApplyMACD(ohlc);
-  if(showSTOCH)anApplyStoch(ohlc);
-  if(anIndicators.MA)  anApplyMA(ohlc);
-  if(anIndicators.EMA) anApplyEMA(ohlc);
-  if(anIndicators.BB)  anApplyBB(ohlc);
+function anFinishDrawing(){
+  if(!anDraftPts.length)return;
+  const id=Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  const pts=[...anDraftPts];
+  const fmt=v=>v>=10000?v.toFixed(2):v>=1?v.toFixed(4):v.toFixed(6);
+  const labels={
+    hline:'H-Line @ '+fmt(pts[0].price),
+    vline:'V-Line',tline:'Trend Line',ray:'Ray Line',extended:'Extended Line',
+    fib:'Fibonacci',fibext:'Fib Extension',fibfan:'Fib Fan',
+    channel:'Channel',rect:'Rectangle',ellipse:'Ellipse',triangle:'Triangle',
+    pitchfork:'Pitchfork',measure:'Measure',arrow:'Arrow',
+    headshoulders:'Head & Shoulders',xabcd:'XABCD',
+  };
+  anDrawings.push({id,type:anTool,pts,opts:{},label:labels[anTool]||anTool});
+  anDraftPts=[];anRenderDrawingsList();anRedraw();
+}
 
-  // OHLCV tooltip
-  const ohlcvEl = document.getElementById('anOhlcv');
-  anChart.subscribeCrosshairMove(param => {
-    if(!param.time||!ohlcvEl){ if(ohlcvEl) ohlcvEl.style.display='none'; return; }
-    const d = param.seriesData.get(anSeries);
-    if(!d){ ohlcvEl.style.display='none'; return; }
-    const o=d.open??d.value, h=d.high??d.value, l=d.low??d.value, c=d.close??d.value;
-    const clr = c>=o?'#00d4a0':'#ff4a6e';
-    const fmt = v => idr?Math.round(v).toLocaleString('id-ID'):v>=10000?v.toFixed(2):v>=1?v.toFixed(4):v.toFixed(6);
-    ohlcvEl.style.display='flex';
-    ohlcvEl.innerHTML = `<span>O:<b style="color:${clr}">${fmt(o)}</b></span><span>H:<b style="color:${clr}">${fmt(h)}</b></span><span>L:<b style="color:${clr}">${fmt(l)}</b></span><span>C:<b style="color:${clr}">${fmt(c)}</b></span>`;
-    if(anVolSer&&param.seriesData.get(anVolSer)){
-      const v=param.seriesData.get(anVolSer).value;
-      ohlcvEl.innerHTML+=`<span>V:<b style="color:#8a9ab8">${v>=1e9?(v/1e9).toFixed(2)+'B':v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':v.toFixed(0)}</b></span>`;
+function anRedraw(){
+  if(!anCtx||!anCanvas_)return;
+  const W=anCanvas_.width,H=anCanvas_.height;
+  anCtx.clearRect(0,0,W,H);
+  anDrawings.forEach(d=>anDrawOne(anCtx,d.type,d.pts,d.opts,false,W,H));
+  if(anDraftPts.length&&anTool!=='pointer'){
+    const t=anXToTime(anMousePos.x),p=anYToPrice(anMousePos.y);
+    if(t!==null&&p!==null){
+      const preview=[...anDraftPts,{time:t,price:p,x:anMousePos.x,y:anMousePos.y}];
+      anDrawOne(anCtx,anTool,preview,{},true,W,H);
     }
-    // Right panel stats
-    document.getElementById('anStatO').textContent = fmt(o);
-    document.getElementById('anStatH').textContent = fmt(h);
-    document.getElementById('anStatL').textContent = fmt(l);
-    document.getElementById('anStatC').textContent = fmt(c);
-    const chgPct = ((c-o)/o*100);
-    const statChg = document.getElementById('anStatChg');
-    statChg.textContent = (chgPct>=0?'+':'')+chgPct.toFixed(2)+'%';
-    statChg.style.color = chgPct>=0?'var(--green)':'var(--red)';
-    if(anVolSer&&param.seriesData.get(anVolSer)){
-      const v=param.seriesData.get(anVolSer).value;
-      document.getElementById('anStatV').textContent = v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v.toFixed(0);
-    }
-  });
-
-  // Drawing click handler
-  anChart.subscribeClick(param => {
-    if(anTool==='pointer'||!param.time) return;
-    const price = anSeries.coordinateToPrice(param.point.y);
-    anHandleClick(param.time, price, param.point);
-  });
-
-  anChart.timeScale().fitContent();
-
-  // Resize
-  if(window._anResizeObs) window._anResizeObs.disconnect();
-  window._anResizeObs = new ResizeObserver(()=>{ if(anChart&&wrap) anChart.applyOptions({width:wrap.clientWidth,height:wrap.clientHeight}); });
-  window._anResizeObs.observe(wrap);
-
-  // Connect WS
-  anConnectWS(anSym, anInterval);
-}
-
-// ── WebSocket for analysis ───────────────────────────────────────────────
-function anConnectWS(sym, interval) {
-  if(anWs){ try{anWs.close();}catch(e){} anWs=null; }
-  const pair = BI_PAIRS[sym]; if(!pair||!anSeries) return;
-  const intvl = BI_INTVL[interval]||'1m';
-  const idr = isIDR(sym);
-  try {
-    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${pair.toLowerCase()}@kline_${intvl}`);
-    anWs = ws;
-    ws.onmessage = (e) => {
-      try {
-        const k = JSON.parse(e.data).k; if(!k) return;
-        const c = {time:Math.floor(k.t/1000),open:parseFloat(k.o),high:parseFloat(k.h),low:parseFloat(k.l),close:parseFloat(k.c),volume:parseFloat(k.v)};
-        if(c.high<Math.max(c.open,c.close)||c.low>Math.min(c.open,c.close)) return;
-        if(anSeries) try{anSeries.update(c);}catch(e2){}
-        if(anVolSer) try{anVolSer.update({time:c.time,value:c.volume,color:c.close>=c.open?'rgba(0,212,160,0.5)':'rgba(255,74,110,0.5)'});}catch(e2){}
-        if(anRawOHLC.length){const last=anRawOHLC[anRawOHLC.length-1];if(last.time===c.time)anRawOHLC[anRawOHLC.length-1]=c;else if(c.time>last.time&&k.x)anRawOHLC.push(c);}
-        // Update header price
-        document.getElementById('anPrice').textContent = fmtP(c.close, idr);
-        const q2=qCache[sym]; if(q2) q2.c=c.close;
-        document.getElementById('anSrc').textContent='● Binance WS · '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-      } catch(e2){}
-    };
-    ws.onclose = () => { if(anWs===ws&&anSym===sym) setTimeout(()=>anConnectWS(sym,interval),3000); };
-  } catch(e){}
-}
-
-// ── Tool management ──────────────────────────────────────────────────────
-function anSetTool(tool) {
-  anTool = tool; anTlPts = [];
-  document.querySelectorAll('.an-tool').forEach(el=>el.classList.remove('active'));
-  const el = document.getElementById('anTool_'+tool);
-  if(el) el.classList.add('active');
-  const wrap = document.getElementById('anChartWrap');
-  if(wrap){
-    wrap.className = 'an-chart-wrap ' + (tool==='pointer'?'cursor-default':'cursor-crosshair');
   }
 }
 
-function anSetTF(btn, interval) {
-  anInterval = interval;
-  document.querySelectorAll('.an-btn[id^="anTF_"]').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  anInitChart();
+function anDot(ctx,pt,color){
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.arc(pt.x,pt.y,4,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#0a0c0f';ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(pt.x,pt.y,4,0,Math.PI*2);ctx.stroke();
 }
 
-function anSetType(type, btn) {
-  anChartType = type;
-  document.querySelectorAll('#anTypeC,#anTypeL,#anTypeB').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  anInitChart();
+function anExtend(a,b,W,H){
+  const dx=b.x-a.x,dy=b.y-a.y;
+  if(Math.abs(dx)<0.001&&Math.abs(dy)<0.001)return b;
+  let t=1e9;
+  if(dx>0)t=Math.min(t,(W-a.x)/dx);
+  if(dx<0)t=Math.min(t,(0-a.x)/dx);
+  if(dy>0)t=Math.min(t,(H-a.y)/dy);
+  if(dy<0)t=Math.min(t,(0-a.y)/dy);
+  if(t<0||t>1e8)t=500;
+  return{x:a.x+dx*t,y:a.y+dy*t};
 }
 
-function anToggleInd(ind) {
-  anIndicators[ind] = !anIndicators[ind];
-  const btn = document.getElementById('anInd'+ind);
-  if(btn) btn.classList.toggle('active', anIndicators[ind]);
-  // Re-render chart with new indicators
-  anInitChart();
-}
+function anDrawOne(ctx,type,pts,opts,draft,W,H){
+  if(!pts.length)return;
+  const alpha=draft?0.6:1;
+  const color=AN_COLORS[type]||'#c8d4e8';
+  const p=pts.map(anTP);
+  if(p.some(pt=>pt.x===null||pt.y===null||isNaN(pt.x)||isNaN(pt.y)))return;
+  ctx.save();ctx.globalAlpha=alpha;
 
-// ── Indicator computations & appliers ───────────────────────────────────
-function anCalcMACD(data, fast=12, slow=26, sig=9) {
-  const ema = (d,n)=>{ const k=2/(n+1);let e=null; return d.map(x=>{e=e===null?x:x*k+e*(1-k);return e;}); };
-  const closes = data.map(d=>d.close);
-  const fastEMA = ema(closes, fast);
-  const slowEMA = ema(closes, slow);
-  const macdLine = fastEMA.map((f,i)=>f-slowEMA[i]);
-  const signal   = ema(macdLine.slice(slow-1), sig);
-  return data.slice(slow-1).map((d,i)=>({
-    time: d.time,
-    macd:  macdLine[slow-1+i],
-    signal: signal[i] ?? macdLine[slow-1+i],
-    hist:  macdLine[slow-1+i] - (signal[i]??macdLine[slow-1+i]),
-  }));
-}
-function anCalcStoch(data, k=14, d=3) {
-  const result=[];
-  for(let i=k-1;i<data.length;i++){
-    const slice=data.slice(i-k+1,i+1);
-    const hi=Math.max(...slice.map(x=>x.high));
-    const lo=Math.min(...slice.map(x=>x.low));
-    const kVal = lo===hi ? 50 : (data[i].close-lo)/(hi-lo)*100;
-    result.push({time:data[i].time, k:kVal});
+  if(type==='hline'){
+    const y=p[0].y;
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();ctx.setLineDash([]);
+    const idr=isIDR(anSym);const v=pts[0].price;
+    const lbl=idr?Math.round(v).toLocaleString('id-ID'):v>=10000?v.toFixed(2):v>=1?v.toFixed(4):v.toFixed(6);
+    ctx.fillStyle=color;ctx.font='9px IBM Plex Mono';
+    const tw=ctx.measureText(lbl).width+8;
+    ctx.fillRect(W-tw-2,y-9,tw,16);ctx.fillStyle='#0a0c0f';ctx.fillText(lbl,W-tw+2,y+4);
   }
-  const dVals = result.map((_,i)=>{
-    if(i<d-1) return null;
-    return {time:result[i].time, d: result.slice(i-d+1,i+1).reduce((a,b)=>a+b.k,0)/d};
-  }).filter(Boolean);
-  return { kLine:result, dLine:dVals };
-}
-
-function anApplyVol(ohlc) {
-  if(anVolSer){try{anChart.removeSeries(anVolSer);}catch(e){}}
-  anVolSer = anChart.addHistogramSeries({color:'rgba(0,212,160,0.4)',priceFormat:{type:'volume'},priceScaleId:'anVol'});
-  anVolSer.priceScale().applyOptions({scaleMargins:{top:0.82,bottom:0}});
-  anVolSer.setData(ohlc.map(d=>({time:d.time,value:d.volume,color:d.close>=d.open?'rgba(0,212,160,0.45)':'rgba(255,74,110,0.45)'})));
-}
-function anApplyRSI(ohlc) {
-  if(anRsiSer){try{anChart.removeSeries(anRsiSer);}catch(e){}}
-  anRsiSer = anChart.addLineSeries({color:'#a855f7',lineWidth:1,priceScaleId:'anRSI'});
-  anRsiSer.priceScale().applyOptions({scaleMargins:{top:0.78,bottom:0.02}});
-  anRsiSer.setData(calcRSI(ohlc));
-  [70,30].forEach(lv=>{
-    anChart.addLineSeries({color:lv===70?'rgba(255,74,110,0.25)':'rgba(0,212,160,0.25)',lineWidth:1,lineStyle:2,priceScaleId:'anRSI',lastValueVisible:false,crosshairMarkerVisible:false})
-      .setData([{time:ohlc[0].time,value:lv},{time:ohlc[ohlc.length-1].time,value:lv}]);
-  });
-}
-function anApplyMACD(ohlc) {
-  if(anMacdSer){try{anChart.removeSeries(anMacdSer);}catch(e){}}
-  if(anMacdSig){try{anChart.removeSeries(anMacdSig);}catch(e){}}
-  if(anMacdHist){try{anChart.removeSeries(anMacdHist);}catch(e){}}
-  const macdData = anCalcMACD(ohlc);
-  anMacdHist = anChart.addHistogramSeries({color:'#4a9eff',priceScaleId:'anMACD'});
-  anMacdHist.priceScale().applyOptions({scaleMargins:{top:0.78,bottom:0.02}});
-  anMacdHist.setData(macdData.map(d=>({time:d.time,value:d.hist,color:d.hist>=0?'rgba(0,212,160,0.6)':'rgba(255,74,110,0.6)'})));
-  anMacdSer = anChart.addLineSeries({color:'#4a9eff',lineWidth:1,priceScaleId:'anMACD',lastValueVisible:true,crosshairMarkerVisible:false});
-  anMacdSer.setData(macdData.map(d=>({time:d.time,value:d.macd})));
-  anMacdSig = anChart.addLineSeries({color:'#f5a623',lineWidth:1,priceScaleId:'anMACD',lastValueVisible:true,crosshairMarkerVisible:false});
-  anMacdSig.setData(macdData.map(d=>({time:d.time,value:d.signal})));
-}
-function anApplyStoch(ohlc) {
-  if(anStochK){try{anChart.removeSeries(anStochK);}catch(e){}}
-  if(anStochD){try{anChart.removeSeries(anStochD);}catch(e){}}
-  const {kLine,dLine} = anCalcStoch(ohlc);
-  anStochK = anChart.addLineSeries({color:'#00c8e8',lineWidth:1,priceScaleId:'anStoch'});
-  anStochK.priceScale().applyOptions({scaleMargins:{top:0.78,bottom:0.02}});
-  anStochK.setData(kLine);
-  anStochD = anChart.addLineSeries({color:'#f5a623',lineWidth:1,priceScaleId:'anStoch',crosshairMarkerVisible:false});
-  anStochD.setData(dLine);
-  [80,20].forEach(lv=>{
-    anChart.addLineSeries({color:lv===80?'rgba(255,74,110,0.2)':'rgba(0,212,160,0.2)',lineWidth:1,lineStyle:2,priceScaleId:'anStoch',lastValueVisible:false,crosshairMarkerVisible:false})
-      .setData([{time:ohlc[0].time,value:lv},{time:ohlc[ohlc.length-1].time,value:lv}]);
-  });
-}
-function anApplyMA(ohlc) {
-  if(anMaSer){try{anChart.removeSeries(anMaSer);}catch(e){}}
-  anMaSer = anChart.addLineSeries({color:'#f5a623',lineWidth:1,lastValueVisible:true,crosshairMarkerVisible:false,title:'MA20'});
-  anMaSer.setData(calcSMA(ohlc,20));
-}
-function anApplyEMA(ohlc) {
-  if(anEmaSer){try{anChart.removeSeries(anEmaSer);}catch(e){}}
-  anEmaSer = anChart.addLineSeries({color:'#4a9eff',lineWidth:1,lastValueVisible:true,crosshairMarkerVisible:false,title:'EMA20'});
-  anEmaSer.setData(calcEMA(ohlc,20));
-}
-function anApplyBB(ohlc) {
-  const{upper,middle,lower}=calcBB(ohlc,20,2);
-  if(anBb.u){try{anChart.removeSeries(anBb.u);anChart.removeSeries(anBb.m);anChart.removeSeries(anBb.l);}catch(e){}}
-  const opt={lineWidth:1,lastValueVisible:false,crosshairMarkerVisible:false};
-  anBb.u=anChart.addLineSeries({...opt,color:'rgba(168,85,247,0.7)',title:'BB+'});
-  anBb.m=anChart.addLineSeries({...opt,color:'rgba(168,85,247,0.35)'});
-  anBb.l=anChart.addLineSeries({...opt,color:'rgba(168,85,247,0.7)',title:'BB-'});
-  anBb.u.setData(upper);anBb.m.setData(middle);anBb.l.setData(lower);
-}
-
-// ── Drawing handler (click-based) ────────────────────────────────────────
-function anHandleClick(time, price, point) {
-  const idr = isIDR(anSym);
-  const fmt = v => idr?Math.round(v).toLocaleString('id-ID'):v>=10000?v.toFixed(2):v>=1?v.toFixed(4):v.toFixed(6);
-
-  // Single-click tools
-  if(['hline','vline','text','arrow'].includes(anTool)) {
-    let series, label;
-    if(anTool==='hline'){
-      series = anChart.addLineSeries({color:'#f5a623',lineWidth:1,lineStyle:2,lastValueVisible:true,crosshairMarkerVisible:false,title:'HL '+fmt(price)});
-      series.setData([{time:anRawOHLC[0].time,value:price},{time:anRawOHLC[anRawOHLC.length-1].time,value:price}]);
-      label = `H-Line @ ${fmt(price)}`;
-    } else if(anTool==='vline'){
-      series = anChart.addLineSeries({color:'#4a9eff',lineWidth:1,lineStyle:2,lastValueVisible:false,crosshairMarkerVisible:false});
-      const allPrices = anRawOHLC.map(c=>c.close);
-      const minP=Math.min(...allPrices)*0.95, maxP=Math.max(...allPrices)*1.05;
-      series.setData([{time,value:minP},{time,value:maxP}]);
-      label = `V-Line @ ${new Date(time*1000).toLocaleDateString()}`;
-    } else if(anTool==='text') {
-      const txt = prompt('Enter label text:','');
-      if(!txt) return;
-      series = anChart.addLineSeries({color:'#00c8e8',lineWidth:0,lastValueVisible:true,crosshairMarkerVisible:true,title:txt});
-      series.setData([{time,value:price}]);
-      label = `Text: ${txt}`;
-    } else if(anTool==='arrow') {
-      series = anChart.addLineSeries({color:'#a855f7',lineWidth:2,lastValueVisible:true,crosshairMarkerVisible:true,title:'▲ '+fmt(price)});
-      series.setData([{time,value:price*0.995},{time,value:price}]);
-      label = `Arrow @ ${fmt(price)}`;
-    }
-    if(series){
-      const id = Date.now()+'_'+Math.random().toString(36).slice(2,6);
-      anDrawings.push({id,type:anTool,series,label});
-      anRenderDrawingsList();
-    }
-    return;
+  else if(type==='vline'){
+    const x=p[0].x;
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
+    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();ctx.setLineDash([]);
+    const lbl=new Date(pts[0].time*1000).toLocaleDateString('id-ID',{month:'short',day:'numeric'});
+    ctx.fillStyle=color;ctx.font='9px IBM Plex Mono';
+    const tw=ctx.measureText(lbl).width+8;
+    ctx.fillRect(x-tw/2,H-20,tw,16);ctx.fillStyle='#0a0c0f';ctx.fillText(lbl,x-tw/2+4,H-7);
   }
-
-  // Multi-click tools (2+ points)
-  anTlPts.push({time, price, x:point?.x, y:point?.y});
-
-  const twoClickTools = ['tline','ray','extended','fib','fibext','channel','rect','ellipse','triangle','measure','pitchfork','fibfan','headshoulders','xabcd','arrow2'];
-
-  if(anTlPts.length===1 && twoClickTools.includes(anTool)){
-    toast('Click titik kedua untuk '+anTool+'...');
-    return;
+  else if(type==='tline'){
+    if(p.length<2){anDot(ctx,p[0],color);ctx.restore();return;}
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);ctx.lineTo(p[1].x,p[1].y);ctx.stroke();
+    anDot(ctx,p[0],color);anDot(ctx,p[1],color);
   }
-
-  // Need third point for pitchfork
-  if(anTool==='pitchfork' && anTlPts.length<3){ toast(`Click titik ${anTlPts.length+1}/3...`); return; }
-
-  // Build drawing from collected points
-  const [p1,p2,p3] = anTlPts;
-  let series, extraSeries=[], label;
-  const id = Date.now()+'_'+Math.random().toString(36).slice(2,6);
-  const t1=p1.time,t2=p2?.time;
-
-  if(anTool==='tline'||anTool==='ray'||anTool==='extended'){
-    const clr = anTool==='tline'?'#00c8e8':anTool==='ray'?'#00d4a0':'#a855f7';
-    series = anChart.addLineSeries({color:clr,lineWidth:1.5,lastValueVisible:false,crosshairMarkerVisible:false});
-    if(anTool==='extended'){
-      const slope=(p2.price-p1.price)/(p2.time-p1.time);
-      const ext1=anRawOHLC[0].time, ext2=anRawOHLC[anRawOHLC.length-1].time;
-      series.setData([{time:ext1,value:p1.price+slope*(ext1-p1.time)},{time:ext2,value:p1.price+slope*(ext2-p1.time)}]);
-    } else series.setData([{time:t1,value:p1.price},{time:t2,value:p2.price}]);
-    label = `${anTool.charAt(0).toUpperCase()+anTool.slice(1)} Line`;
+  else if(type==='ray'){
+    if(p.length<2){anDot(ctx,p[0],color);ctx.restore();return;}
+    const ext=anExtend(p[0],p[1],W,H);
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);ctx.lineTo(ext.x,ext.y);ctx.stroke();
+    anDot(ctx,p[0],color);anDot(ctx,p[1],color);
   }
-  else if(anTool==='fib'||anTool==='fibext'){
-    const hi=Math.max(p1.price,p2.price), lo=Math.min(p1.price,p2.price), rng=hi-lo;
-    const levels = anTool==='fib' ? [0,0.236,0.382,0.5,0.618,0.786,1] : [1,1.236,1.382,1.5,1.618,2,2.618];
-    const colors = ['#ff4a6e','#f5a623','#ffd700','#00d4a0','#4a9eff','#a855f7','#ff4a6e'];
-    const seriesList=[];
+  else if(type==='extended'){
+    if(p.length<2){anDot(ctx,p[0],color);ctx.restore();return;}
+    const e1=anExtend(p[1],p[0],W,H),e2=anExtend(p[0],p[1],W,H);
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(e1.x,e1.y);ctx.lineTo(e2.x,e2.y);ctx.stroke();
+    anDot(ctx,p[0],color);anDot(ctx,p[1],color);
+  }
+  else if(type==='arrow'){
+    if(p.length<2){anDot(ctx,p[0],color);ctx.restore();return;}
+    const [a,b]=[p[0],p[1]];
+    ctx.strokeStyle=color;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+    const ang=Math.atan2(b.y-a.y,b.x-a.x),as=12;
+    ctx.fillStyle=color;ctx.beginPath();
+    ctx.moveTo(b.x,b.y);
+    ctx.lineTo(b.x-as*Math.cos(ang-0.4),b.y-as*Math.sin(ang-0.4));
+    ctx.lineTo(b.x-as*Math.cos(ang+0.4),b.y-as*Math.sin(ang+0.4));
+    ctx.closePath();ctx.fill();
+    anDot(ctx,a,color);
+  }
+  else if(type==='channel'){
+    if(p.length<2){anDot(ctx,p[0],color);ctx.restore();return;}
+    const [a,b]=[p[0],p[1]];
+    const e1=anExtend(b,a,W,H),e2=anExtend(a,b,W,H);
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(e1.x,e1.y);ctx.lineTo(e2.x,e2.y);ctx.stroke();
+    const dy=b.y-a.y;
+    ctx.lineWidth=1;ctx.setLineDash([5,4]);
+    ctx.beginPath();ctx.moveTo(e1.x,e1.y+dy);ctx.lineTo(e2.x,e2.y+dy);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(0,200,232,0.06)';
+    ctx.beginPath();ctx.moveTo(e1.x,e1.y);ctx.lineTo(e2.x,e2.y);
+    ctx.lineTo(e2.x,e2.y+dy);ctx.lineTo(e1.x,e1.y+dy);ctx.closePath();ctx.fill();
+    anDot(ctx,a,color);anDot(ctx,b,color);
+  }
+  else if(type==='rect'){
+    if(p.length<2){anDot(ctx,p[0],color);ctx.restore();return;}
+    const [a,b]=[p[0],p[1]];
+    const x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.abs(b.x-a.x),h=Math.abs(b.y-a.y);
+    ctx.fillStyle='rgba(0,200,232,0.07)';ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.strokeRect(x,y,w,h);
+    ctx.fillStyle=color;ctx.font='9px IBM Plex Mono';
+    const fmt=v=>v>=10000?v.toFixed(2):v>=1?v.toFixed(4):v.toFixed(6);
+    ctx.fillText(fmt(Math.max(pts[0].price,pts[1].price)),x+4,y+12);
+    ctx.fillText(fmt(Math.min(pts[0].price,pts[1].price)),x+4,y+h-4);
+    anDot(ctx,a,color);anDot(ctx,b,color);
+  }
+  else if(type==='ellipse'){
+    if(p.length<2){anDot(ctx,p[0],color);ctx.restore();return;}
+    const [a,b]=[p[0],p[1]];
+    const cx=(a.x+b.x)/2,cy=(a.y+b.y)/2,rx=Math.abs(b.x-a.x)/2,ry=Math.abs(b.y-a.y)/2;
+    ctx.fillStyle='rgba(0,212,160,0.07)';
+    ctx.beginPath();ctx.ellipse(cx,cy,Math.max(rx,2),Math.max(ry,2),0,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.stroke();
+    anDot(ctx,a,color);anDot(ctx,b,color);
+  }
+  else if(type==='triangle'){
+    if(p.length<2){anDot(ctx,p[0],color);ctx.restore();return;}
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.fillStyle='rgba(168,85,247,0.07)';
+    ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);
+    for(let i=1;i<Math.min(p.length,3);i++) ctx.lineTo(p[i].x,p[i].y);
+    if(p.length>=3)ctx.closePath();
+    ctx.fill();ctx.stroke();
+    p.slice(0,3).forEach(pt=>anDot(ctx,pt,color));
+  }
+  else if(type==='fib'||type==='fibext'){
+    if(p.length<2){anDot(ctx,p[0],color);ctx.restore();return;}
+    const [a,b]=[p[0],p[1]];
+    const hiP=Math.max(pts[0].price,pts[1].price),loP=Math.min(pts[0].price,pts[1].price),rng=hiP-loP;
+    const xL=Math.min(a.x,b.x),xR=Math.max(a.x,b.x);
+    const levels=type==='fib'?FIB_LEVELS:FIBEXT_LEVELS;
+    const fmt=v=>v>=10000?v.toFixed(2):v>=1?v.toFixed(4):v.toFixed(6);
     levels.forEach((lv,i)=>{
-      const val = anTool==='fib' ? hi-rng*lv : hi+rng*(lv-1);
-      const s=anChart.addLineSeries({color:colors[i],lineWidth:1,lineStyle:2,lastValueVisible:true,crosshairMarkerVisible:false,title:(lv*100).toFixed(1)+'%'});
-      s.setData([{time:Math.min(t1,t2),value:val},{time:Math.max(t1,t2),value:val}]);
-      seriesList.push(s);
+      const val=type==='fib'?hiP-rng*lv:hiP+rng*(lv-1);
+      const yy=anPriceToY(val);if(yy===null)return;
+      ctx.strokeStyle=FIB_COLORS[i];ctx.lineWidth=1;ctx.setLineDash([4,3]);
+      ctx.beginPath();ctx.moveTo(xL,yy);ctx.lineTo(xR,yy);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle=FIB_COLORS[i];ctx.font='9px IBM Plex Mono';
+      ctx.fillText(`${(lv*100).toFixed(1)}%  ${fmt(val)}`,xR+4,yy+3);
     });
-    anDrawings.push({id,type:anTool,series:seriesList[0],extraSeries:seriesList.slice(1),label:`${anTool==='fib'?'Fibonacci':'Fib Ext'} ${fmt(lo)}–${fmt(hi)}`});
-    anTlPts=[];anRenderDrawingsList();return;
+    anDot(ctx,a,color);anDot(ctx,b,color);
   }
-  else if(anTool==='fibfan'){
-    const [loP,hiP] = p1.price<p2.price?[p1,p2]:[p2,p1];
-    const rng=hiP.price-loP.price;
+  else if(type==='fibfan'){
+    if(p.length<2){anDot(ctx,p[0],color);ctx.restore();return;}
+    const [a,b]=[p[0],p[1]];
     [0.382,0.5,0.618].forEach((lv,i)=>{
-      const s=anChart.addLineSeries({color:['#f5a623','#00d4a0','#4a9eff'][i],lineWidth:1,lineStyle:2,lastValueVisible:true,crosshairMarkerVisible:false,title:(lv*100)+'%'});
-      const endPrice=loP.price+rng*lv;
-      s.setData([{time:loP.time,value:loP.price},{time:hiP.time,value:endPrice}]);
-      extraSeries.push(s);
+      const endY=a.y+(b.y-a.y)*lv;
+      const clr=['#f5a623','#00d4a0','#4a9eff'][i];
+      ctx.strokeStyle=clr;ctx.lineWidth=1;ctx.setLineDash([4,3]);
+      const ext=anExtend(a,{x:b.x,y:endY},W,H);
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(ext.x,ext.y);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle=clr;ctx.font='9px IBM Plex Mono';
+      ctx.fillText(`${(lv*100).toFixed(0)}%`,ext.x-28,ext.y-3);
     });
-    series=extraSeries.shift();
-    label='Fib Fan';
+    anDot(ctx,a,color);anDot(ctx,b,color);
   }
-  else if(anTool==='channel'){
-    const slope=(p2.price-p1.price)/(p2.time-p1.time);
-    const ext=anRawOHLC[anRawOHLC.length-1].time;
-    series=anChart.addLineSeries({color:'#00c8e8',lineWidth:1.5,lastValueVisible:false,crosshairMarkerVisible:false});
-    series.setData([{time:t1,value:p1.price},{time:ext,value:p1.price+slope*(ext-t1)}]);
-    const s2=anChart.addLineSeries({color:'#00c8e8',lineWidth:1,lineStyle:2,lastValueVisible:false,crosshairMarkerVisible:false});
-    const offset=p2.price-p1.price;
-    s2.setData([{time:t1,value:p1.price+offset},{time:ext,value:p1.price+slope*(ext-t1)+offset}]);
-    extraSeries.push(s2);label='Channel';
-  }
-  else if(anTool==='rect'){
-    const hi=Math.max(p1.price,p2.price), lo=Math.min(p1.price,p2.price);
-    const tMin=Math.min(t1,t2), tMax=Math.max(t1,t2);
-    const sides=[{t1:tMin,v1:hi,t2:tMax,v2:hi},{t1:tMax,v1:hi,t2:tMax,v2:lo},{t1:tMax,v1:lo,t2:tMin,v2:lo},{t1:tMin,v1:lo,t2:tMin,v2:hi}];
-    const seriesList=sides.map(s=>{const ser=anChart.addLineSeries({color:'rgba(0,200,232,0.8)',lineWidth:1,lastValueVisible:false,crosshairMarkerVisible:false});ser.setData([{time:s.t1,value:s.v1},{time:s.t2,value:s.v2}]);return ser;});
-    anDrawings.push({id,type:'rect',series:seriesList[0],extraSeries:seriesList.slice(1),label:`Rect ${fmt(lo)}–${fmt(hi)}`});
-    anTlPts=[];anRenderDrawingsList();return;
-  }
-  else if(anTool==='measure'){
-    const pct=((p2.price-p1.price)/p1.price*100).toFixed(2);
-    series=anChart.addLineSeries({color:'#ffd700',lineWidth:2,lastValueVisible:true,crosshairMarkerVisible:false,title:`${pct>=0?'+':''}${pct}%`});
-    series.setData([{time:t1,value:p1.price},{time:t2,value:p2.price}]);
-    label=`Measure: ${pct>=0?'+':''}${pct}%`;
-    toast(`📏 Range: ${fmt(Math.abs(p2.price-p1.price))} (${pct}%)`);
-  }
-  else if(anTool==='pitchfork'){
-    if(!p3){toast('Click titik 3/3...');return;}
-    const midPrice=(p1.price+p2.price)/2, midTime=Math.floor((p1.time+p2.time)/2);
-    series=anChart.addLineSeries({color:'#a855f7',lineWidth:1.5,lastValueVisible:false,crosshairMarkerVisible:false});
-    series.setData([{time:p3.time,value:p3.price},{time:midTime,value:midPrice}]);
-    [p1,p2].forEach(pt=>{
-      const s=anChart.addLineSeries({color:'#a855f7',lineWidth:1,lineStyle:2,lastValueVisible:false,crosshairMarkerVisible:false});
-      s.setData([{time:p3.time,value:p3.price},{time:pt.time,value:pt.price}]);
-      extraSeries.push(s);
+  else if(type==='pitchfork'){
+    if(p.length<2){anDot(ctx,p[0],color);ctx.restore();return;}
+    const pts3=pts.slice(0,3),p3=p.slice(0,3);
+    if(p.length<3){
+      ctx.strokeStyle=color;ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(p3[0].x,p3[0].y);for(let i=1;i<p3.length;i++)ctx.lineTo(p3[i].x,p3[i].y);ctx.stroke();
+      p3.forEach(pt=>anDot(ctx,pt,color));ctx.restore();return;
+    }
+    const mid={x:(p3[1].x+p3[2].x)/2,y:(p3[1].y+p3[2].y)/2};
+    const ext=anExtend(p3[0],mid,W,H);
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(p3[0].x,p3[0].y);ctx.lineTo(ext.x,ext.y);ctx.stroke();
+    ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    [p3[1],p3[2]].forEach(pt=>{
+      const ext2=anExtend(pt,{x:pt.x+(ext.x-p3[0].x),y:pt.y+(ext.y-p3[0].y)},W,H);
+      ctx.beginPath();ctx.moveTo(pt.x,pt.y);ctx.lineTo(ext2.x,ext2.y);ctx.stroke();
     });
-    label='Pitchfork';
+    // Connect prongs at midpoint distance
+    const d=Math.sqrt((p3[1].x-p3[2].x)**2+(p3[1].y-p3[2].y)**2);
+    ctx.setLineDash([]);
+    p3.forEach(pt=>anDot(ctx,pt,color));
   }
-  else if(anTool==='headshoulders'){
-    const pts=[p1,p2];
-    series=anChart.addLineSeries({color:'#00c8e8',lineWidth:1.5,lastValueVisible:false,crosshairMarkerVisible:false});
-    series.setData(pts.map(p=>({time:p.time,value:p.price})));
-    label='Head & Shoulders';
+  else if(type==='measure'){
+    if(p.length<2){anDot(ctx,p[0],color);ctx.restore();return;}
+    const [a,b]=[p[0],p[1]];
+    const diff=pts[1].price-pts[0].price,pct=(diff/pts[0].price*100).toFixed(2),bull=diff>0;
+    const fc=bull?'rgba(0,212,160,0.1)':'rgba(255,74,110,0.1)';
+    const sc=bull?'#00d4a0':'#ff4a6e';
+    const x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.abs(b.x-a.x),h=Math.abs(b.y-a.y);
+    ctx.fillStyle=fc;ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle=sc;ctx.lineWidth=1.5;ctx.strokeRect(x,y,w,h);
+    // Horizontal lines at top and bottom
+    ctx.setLineDash([3,3]);ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,a.y);ctx.lineTo(a.x,a.y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,b.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+    ctx.setLineDash([]);
+    const idr=isIDR(anSym);const av=Math.abs(diff);
+    const vs=idr?Math.round(av).toLocaleString('id-ID'):av>=1000?av.toFixed(2):av.toFixed(4);
+    const lbl=`${bull?'+':''}${pct}%  Δ${vs}`;
+    ctx.font='bold 10px IBM Plex Mono';const tw=ctx.measureText(lbl).width;
+    const cx=x+w/2,cy=y+h/2;
+    ctx.fillStyle=sc+'33';ctx.fillRect(cx-tw/2-4,cy-10,tw+8,18);
+    ctx.fillStyle=sc;ctx.fillText(lbl,cx-tw/2,cy+4);
+    anDot(ctx,a,sc);anDot(ctx,b,sc);
   }
-  else if(anTool==='xabcd'){
-    anTlPts.push({time,price});
-    if(anTlPts.length<5){toast(`XABCD: point ${anTlPts.length}/5`);return;}
-    series=anChart.addLineSeries({color:'#00c8e8',lineWidth:1.5,lastValueVisible:false,crosshairMarkerVisible:false});
-    series.setData(anTlPts.map(p=>({time:p.time,value:p.price})));
-    label='XABCD Pattern';
+  else if(type==='headshoulders'){
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);
+    for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x,p[i].y);
+    ctx.stroke();
+    if(p.length>=4){
+      ctx.strokeStyle='rgba(255,74,110,0.6)';ctx.lineWidth=1;ctx.setLineDash([5,3]);
+      const ext=anExtend(p[1],p[3],W,H);
+      ctx.beginPath();ctx.moveTo(p[1].x,p[1].y);ctx.lineTo(ext.x,ext.y);ctx.stroke();ctx.setLineDash([]);
+    }
+    const lbls=['LS','L-neck','Head','R-neck','RS'];
+    ctx.fillStyle=color;ctx.font='8px IBM Plex Mono';
+    p.forEach((pt,i)=>{anDot(ctx,pt,color);if(lbls[i])ctx.fillText(lbls[i],pt.x+5,pt.y-7);});
   }
-  else {
-    // Generic 2-point line
-    series=anChart.addLineSeries({color:'#c8d4e8',lineWidth:1,lastValueVisible:false,crosshairMarkerVisible:false});
-    series.setData([{time:t1,value:p1.price},{time:t2,value:p2.price}]);
-    label=anTool;
+  else if(type==='xabcd'){
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);
+    for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x,p[i].y);
+    ctx.stroke();
+    const lbls=['X','A','B','C','D'];
+    ctx.fillStyle=color;ctx.font='bold 10px IBM Plex Mono';
+    p.forEach((pt,i)=>{anDot(ctx,pt,color);ctx.fillText(lbls[i]||'',pt.x+5,pt.y-6);});
+  }
+  else if(type==='text'){
+    const txt=opts.text||'Label';
+    ctx.font='11px IBM Plex Mono';
+    const tw=ctx.measureText(txt).width;
+    ctx.fillStyle='rgba(0,200,232,0.15)';ctx.fillRect(p[0].x-2,p[0].y-14,tw+10,18);
+    ctx.strokeStyle='rgba(0,200,232,0.5)';ctx.lineWidth=1;ctx.strokeRect(p[0].x-2,p[0].y-14,tw+10,18);
+    ctx.fillStyle='#00c8e8';ctx.fillText(txt,p[0].x+3,p[0].y);
+    // Small drag handle
+    anDot(ctx,p[0],'#00c8e8');
   }
 
-  if(series){
-    anDrawings.push({id,type:anTool,series,extraSeries,label});
-    anRenderDrawingsList();
-  }
-  anTlPts=[];
+  ctx.restore();
 }
 
-// ── Drawing list ─────────────────────────────────────────────────────────
-function anRenderDrawingsList(){
-  const el=document.getElementById('anDrawingsList');
-  if(!el)return;
-  if(!anDrawings.length){el.innerHTML='<div style="padding:12px 10px;color:var(--text3);font-size:9px">No drawings yet.<br>Use tools on the left.</div>';return;}
-  el.innerHTML=anDrawings.map(d=>`
-    <div class="an-drawing-row" onclick="anHighlightDrawing('${d.id}')">
-      <span style="color:var(--text2)">${d.label}</span>
-      <button class="an-del" onclick="event.stopPropagation();anDeleteDrawing('${d.id}')">✕</button>
-    </div>`).join('');
+// ── Tool management ──────────────────────────────────────────────────
+function anSetTool(tool){
+  anTool=tool;anDraftPts=[];
+  document.querySelectorAll('.an-tool').forEach(el=>el.classList.remove('active'));
+  const el=document.getElementById('anTool_'+tool);if(el)el.classList.add('active');
+  if(anCanvas_){
+    if(tool==='pointer')anCanvas_.classList.remove('active');
+    else anCanvas_.classList.add('active');
+  }
+  anRedraw();
 }
-
-function anDeleteDrawing(id){
-  const idx=anDrawings.findIndex(d=>d.id===id);
-  if(idx===-1)return;
-  const d=anDrawings[idx];
-  try{anChart.removeSeries(d.series);}catch(e){}
-  if(d.extraSeries) d.extraSeries.forEach(s=>{try{anChart.removeSeries(s);}catch(e){}});
-  anDrawings.splice(idx,1);
-  anRenderDrawingsList();
+function anSetTF(btn,interval){
+  anInterval=interval;
+  document.querySelectorAll('.an-btn[id^="anTF_"]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');anInitChart();
 }
-
-function anHighlightDrawing(id){
-  // Flash the drawing by briefly changing color — visual feedback
-  const d=anDrawings.find(x=>x.id===id);
-  if(!d||!d.series)return;
-  toast('Drawing: '+d.label);
+function anSetType(type,btn){
+  anChartType=type;
+  document.querySelectorAll('#anTypeC,#anTypeL,#anTypeB').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');anInitChart();
 }
-
+function anToggleInd(ind){
+  anIndicators[ind]=!anIndicators[ind];
+  const btn=document.getElementById('anInd'+ind);
+  if(btn)btn.classList.toggle('active',anIndicators[ind]);
+  anInitChart();
+}
 function anUndo(){
   if(!anDrawings.length){toast('Nothing to undo');return;}
-  anDeleteDrawing(anDrawings[anDrawings.length-1].id);
-  toast('Undo last drawing');
+  anDrawings.pop();anRenderDrawingsList();anRedraw();toast('Undo');
 }
-
 function anClearAll(){
-  [...anDrawings].forEach(d=>anDeleteDrawing(d.id));
-  anDrawings=[];anRenderDrawingsList();toast('All drawings cleared');
+  anDrawings=[];anDraftPts=[];anRenderDrawingsList();anRedraw();toast('All drawings cleared');
+}
+function anSnapshot(){
+  toast('Gunakan browser screenshot (F12 screenshot node, atau Cmd+Shift+4)');
 }
 
-function anSnapshot(){
-  if(!anChart)return;
-  toast('Snapshot tidak tersedia di browser mode. Gunakan PrintScreen / Cmd+Shift+4');
+// ── Drawing list ──────────────────────────────────────────────────────
+function anRenderDrawingsList(){
+  const el=document.getElementById('anDrawingsList');if(!el)return;
+  if(!anDrawings.length){el.innerHTML='<div style="padding:12px 10px;color:var(--text3);font-size:9px">No drawings yet.<br>Use tools on the left.</div>';return;}
+  el.innerHTML=anDrawings.map(d=>`<div class="an-drawing-row"><span style="color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${d.label}</span><button class="an-del" onclick="anDeleteById('${d.id}')">✕</button></div>`).join('');
 }
+function anDeleteById(id){
+  anDrawings=anDrawings.filter(d=>d.id!==id);
+  anRenderDrawingsList();anRedraw();
+}
+function anHighlightDrawing(id){toast(anDrawings.find(d=>d.id===id)?.label||'');}
+
+// ── Patch anInitChart to setup canvas afterwards ──────────────────────
+const _anInitOrig=anInitChart;
+anInitChart=async function(){
+  await _anInitOrig();
+  setTimeout(()=>{
+    anSetupCanvas();
+    if(anChart){
+      anChart.timeScale().subscribeVisibleLogicalRangeChange(()=>anRedraw());
+      anChart.subscribeCrosshairMove(()=>anRedraw());
+    }
+    if(anTool!=='pointer'&&anCanvas_)anCanvas_.classList.add('active');
+    anRedraw();
+  },150);
+};
+window.addEventListener('resize',()=>{
+  if(!document.getElementById('analysisOverlay')?.classList.contains('open'))return;
+  const wrap=document.getElementById('anChartWrap'),cv=document.getElementById('anCanvas');
+  if(cv&&wrap){cv.width=wrap.clientWidth;cv.height=wrap.clientHeight;anCtx=cv.getContext('2d');}
+  anRedraw();
+});
+
 
 // ─── START ────────────────────────────────────────────────────────────────────
 init().catch(e => {
