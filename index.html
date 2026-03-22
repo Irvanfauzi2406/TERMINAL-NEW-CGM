@@ -171,8 +171,123 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
 .map-legend{position:absolute;bottom:6px;left:8px;font-size:8px;color:var(--text3);font-family:var(--mono);line-height:1.7}
 #mapTitle{position:absolute;top:5px;left:8px;font-size:9px;color:var(--orange);font-family:var(--mono);font-weight:600;letter-spacing:1px}
 
-/* ── MISC */
-.toast{position:fixed;bottom:40px;right:12px;background:var(--bg4);border:1px solid var(--orange);padding:6px 14px;font-size:10px;color:var(--orange);border-radius:2px;z-index:9999;opacity:0;transition:opacity .25s;pointer-events:none}
+/* ── ANALYSIS OVERLAY ──────────────────────────────────────────────── */
+#analysisOverlay{
+  display:none;position:fixed;inset:0;z-index:200;
+  background:var(--bg);flex-direction:column;
+}
+#analysisOverlay.open{ display:flex; }
+
+/* top bar */
+.an-topbar{
+  height:42px;flex-shrink:0;background:var(--bg2);
+  border-bottom:2px solid var(--orange);
+  display:flex;align-items:center;gap:0;
+}
+.an-sym{
+  padding:0 16px;font-size:13px;font-weight:700;
+  color:var(--orange);letter-spacing:2px;border-right:1px solid var(--border2);
+  height:100%;display:flex;align-items:center;gap:8px;
+}
+.an-price-row{
+  padding:0 14px;height:100%;display:flex;align-items:center;gap:8px;
+  border-right:1px solid var(--border2);
+}
+.an-controls{
+  display:flex;align-items:center;gap:3px;padding:0 8px;height:100%;flex:1;overflow:hidden;
+}
+.an-btn{
+  padding:3px 9px;font-size:9px;font-family:var(--mono);background:none;
+  border:1px solid var(--border2);color:var(--text3);cursor:pointer;
+  transition:all .15s;border-radius:1px;white-space:nowrap;letter-spacing:.4px;
+}
+.an-btn:hover{ border-color:var(--orange);color:var(--orange); }
+.an-btn.active{ background:var(--orange);border-color:var(--orange);color:#000;font-weight:700; }
+.an-sep{ width:1px;height:18px;background:var(--border2);margin:0 3px;flex-shrink:0; }
+.an-ind-btn{
+  padding:3px 9px;font-size:9px;font-family:var(--mono);background:none;
+  border:1px solid var(--border2);color:var(--text3);cursor:pointer;
+  transition:all .15s;border-radius:1px;white-space:nowrap;
+}
+.an-ind-btn:hover{ border-color:var(--cyan);color:var(--cyan); }
+.an-ind-btn.active{ background:rgba(0,200,232,.15);border-color:var(--cyan);color:var(--cyan); }
+.an-close{
+  margin-left:auto;padding:0 18px;height:100%;background:none;border:none;
+  border-left:1px solid var(--border2);color:var(--text3);font-size:11px;
+  cursor:pointer;font-family:var(--mono);letter-spacing:.5px;
+  transition:all .15s;display:flex;align-items:center;gap:6px;flex-shrink:0;
+}
+.an-close:hover{ background:rgba(255,74,110,.1);color:var(--red); }
+
+/* body = left toolbar + chart */
+.an-body{ flex:1;display:flex;min-height:0;overflow:hidden; }
+
+/* left tool sidebar */
+.an-sidebar{
+  width:44px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border2);
+  display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:2px;
+  overflow-y:auto;
+}
+.an-tool{
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+  border-radius:4px;cursor:pointer;transition:all .15s;
+  border:1px solid transparent;font-size:14px;position:relative;
+  flex-shrink:0;
+}
+.an-tool:hover{ background:var(--bg4);border-color:var(--border2); }
+.an-tool.active{ background:rgba(245,166,35,.15);border-color:var(--orange); }
+.an-tool .an-tooltip{
+  position:absolute;left:44px;top:50%;transform:translateY(-50%);
+  background:var(--bg4);border:1px solid var(--border2);color:var(--text);
+  font-size:9px;font-family:var(--mono);padding:4px 8px;border-radius:2px;
+  white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:10;
+}
+.an-tool:hover .an-tooltip{ opacity:1; }
+.an-tool-sep{ width:28px;height:1px;background:var(--border2);margin:3px 0;flex-shrink:0; }
+
+/* chart container */
+.an-chart-wrap{
+  flex:1;position:relative;min-width:0;background:var(--bg);
+}
+#anChart{ width:100%;height:100%; }
+.an-ohlcv{
+  position:absolute;top:8px;left:10px;z-index:10;
+  font-size:10px;font-family:var(--mono);color:var(--text3);
+  display:flex;gap:12px;pointer-events:none;
+  background:rgba(10,12,15,.8);padding:3px 10px;border-radius:2px;
+}
+.an-ohlcv span b{ font-weight:600; }
+
+/* right info panel */
+.an-info{
+  width:200px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--border2);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.an-info-hdr{
+  padding:8px 12px;background:var(--bg3);border-bottom:1px solid var(--border2);
+  font-size:9px;color:var(--orange);font-weight:600;letter-spacing:1.5px;
+}
+.an-drawings-list{
+  flex:1;overflow-y:auto;font-size:9px;font-family:var(--mono);
+}
+.an-drawing-row{
+  padding:5px 10px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  cursor:pointer;transition:background .1s;
+}
+.an-drawing-row:hover{ background:var(--bg4); }
+.an-del{ background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;padding:1px 5px; }
+.an-del:hover{ color:var(--red); }
+.an-stat-grid{ padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:4px; }
+.an-stat{ background:var(--bg3);padding:6px 8px;border-radius:2px; }
+.an-stat-label{ font-size:8px;color:var(--text3);letter-spacing:.5px; }
+.an-stat-val{ font-size:12px;font-weight:600;font-family:var(--mono);margin-top:2px; }
+
+/* cursor states */
+.an-chart-wrap.cursor-crosshair{ cursor:crosshair; }
+.an-chart-wrap.cursor-default{ cursor:default; }
+.an-chart-wrap.cursor-ns{ cursor:ns-resize; }
+
 .toast.show{opacity:1}
 #dominancePanel svg text{font-family:'IBM Plex Mono',monospace}
 
@@ -237,6 +352,9 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
         <span class="cchg" id="cchg">—</span>
       </div>
       <div class="cmeta" id="cmeta">Click any symbol to load chart</div>
+      <button onclick="openAnalysis()" style="margin-left:12px;padding:4px 14px;background:rgba(245,166,35,.12);border:1px solid var(--orange);color:var(--orange);font-family:var(--mono);font-size:10px;font-weight:600;cursor:pointer;border-radius:2px;letter-spacing:1px;flex-shrink:0;transition:all .2s" onmouseover="this.style.background='rgba(245,166,35,.25)'" onmouseout="this.style.background='rgba(245,166,35,.12)'">
+        📊 ANALISA
+      </button>
     </div>
     <div class="tf-bar">
       <span style="color:var(--text3);font-size:9px;margin-right:2px;flex-shrink:0">TF:</span>
@@ -580,7 +698,198 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
 </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- ═══════════════════════════════════════════════════════════════════
+     ANALYSIS OVERLAY — Full-screen TradingView-style chart analysis
+     ═══════════════════════════════════════════════════════════════════ -->
+<div id="analysisOverlay">
+
+  <!-- TOP BAR -->
+  <div class="an-topbar">
+    <div class="an-sym">
+      <span class="live-dot"></span>
+      <span id="anSymLabel">BTC</span>
+      <span id="anSymFull" style="color:var(--text3);font-size:9px;font-weight:400">—</span>
+    </div>
+    <div class="an-price-row">
+      <span id="anPrice" style="font-size:18px;font-weight:600;font-family:var(--mono)">—</span>
+      <span id="anChg" class="cchg">—</span>
+    </div>
+
+    <!-- TF buttons -->
+    <div class="an-controls">
+      <span style="color:var(--text3);font-size:9px;flex-shrink:0">TF:</span>
+      <button class="an-btn active" id="anTF_1m"  onclick="anSetTF(this,'1min')">1m</button>
+      <button class="an-btn" id="anTF_5m"  onclick="anSetTF(this,'5min')">5m</button>
+      <button class="an-btn" id="anTF_15m" onclick="anSetTF(this,'15min')">15m</button>
+      <button class="an-btn" id="anTF_30m" onclick="anSetTF(this,'30min')">30m</button>
+      <button class="an-btn" id="anTF_1h"  onclick="anSetTF(this,'1h')">1H</button>
+      <button class="an-btn" id="anTF_4h"  onclick="anSetTF(this,'4h')">4H</button>
+      <button class="an-btn" id="anTF_1d"  onclick="anSetTF(this,'1day')">1D</button>
+      <button class="an-btn" id="anTF_1w"  onclick="anSetTF(this,'1week')">1W</button>
+      <div class="an-sep"></div>
+      <span style="color:var(--text3);font-size:9px;flex-shrink:0">TYPE:</span>
+      <button class="an-btn active" id="anTypeC" onclick="anSetType('candlestick',this)">🕯</button>
+      <button class="an-btn" id="anTypeL" onclick="anSetType('line',this)">📈</button>
+      <button class="an-btn" id="anTypeB" onclick="anSetType('bar',this)">▌</button>
+      <div class="an-sep"></div>
+      <span style="color:var(--text3);font-size:9px;flex-shrink:0">IND:</span>
+      <button class="an-ind-btn" id="anIndMA"   onclick="anToggleInd('MA')">MA</button>
+      <button class="an-ind-btn" id="anIndEMA"  onclick="anToggleInd('EMA')">EMA</button>
+      <button class="an-ind-btn" id="anIndBB"   onclick="anToggleInd('BB')">BB</button>
+      <button class="an-ind-btn" id="anIndVOL"  onclick="anToggleInd('VOL')">VOL</button>
+      <button class="an-ind-btn" id="anIndRSI"  onclick="anToggleInd('RSI')">RSI</button>
+      <button class="an-ind-btn" id="anIndMACD" onclick="anToggleInd('MACD')">MACD</button>
+      <button class="an-ind-btn" id="anIndSTOCH" onclick="anToggleInd('STOCH')">STOCH</button>
+      <div class="an-sep"></div>
+      <button class="an-btn" onclick="anClearAll()" style="color:var(--red);border-color:rgba(255,74,110,.3)">✕ CLR</button>
+      <button class="an-btn" onclick="anUndo()" title="Undo last drawing">↩ UNDO</button>
+      <button class="an-btn" onclick="anSnapshot()" title="Save chart as image">📷 SNAP</button>
+    </div>
+
+    <button class="an-close" onclick="closeAnalysis()">✕ &nbsp; TUTUP</button>
+  </div>
+
+  <!-- BODY -->
+  <div class="an-body">
+
+    <!-- LEFT TOOL SIDEBAR -->
+    <div class="an-sidebar" id="anSidebar">
+
+      <!-- Pointer -->
+      <div class="an-tool active" id="anTool_pointer" onclick="anSetTool('pointer')" title="Pointer">
+        ↖<div class="an-tooltip">Pointer (V)</div>
+      </div>
+      <div class="an-tool-sep"></div>
+
+      <!-- Lines -->
+      <div class="an-tool" id="anTool_hline" onclick="anSetTool('hline')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><line x1="1" y1="9" x2="17" y2="9" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3,2"/></svg>
+        <div class="an-tooltip">Horizontal Line (H)</div>
+      </div>
+      <div class="an-tool" id="anTool_vline" onclick="anSetTool('vline')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><line x1="9" y1="1" x2="9" y2="17" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3,2"/></svg>
+        <div class="an-tooltip">Vertical Line (V-line)</div>
+      </div>
+      <div class="an-tool" id="anTool_tline" onclick="anSetTool('tline')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><line x1="2" y1="15" x2="16" y2="3" stroke="currentColor" stroke-width="1.5"/><polygon points="14,2 17,5 16,3" fill="currentColor"/></svg>
+        <div class="an-tooltip">Trend Line (T)</div>
+      </div>
+      <div class="an-tool" id="anTool_ray" onclick="anSetTool('ray')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><line x1="2" y1="14" x2="16" y2="4" stroke="currentColor" stroke-width="1.5"/><circle cx="2" cy="14" r="2" fill="currentColor"/><polygon points="14,3 17,6 16,4" fill="currentColor"/></svg>
+        <div class="an-tooltip">Ray Line</div>
+      </div>
+      <div class="an-tool" id="anTool_extended" onclick="anSetTool('extended')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><line x1="1" y1="14" x2="17" y2="4" stroke="currentColor" stroke-width="1.5"/><polygon points="1,13 1,15 3,14" fill="currentColor"/><polygon points="15,3 17,5 17,3" fill="currentColor"/></svg>
+        <div class="an-tooltip">Extended Line</div>
+      </div>
+      <div class="an-tool-sep"></div>
+
+      <!-- Channels -->
+      <div class="an-tool" id="anTool_pitchfork" onclick="anSetTool('pitchfork')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path d="M2,15 L9,6 L16,15 M9,6 L9,2" stroke="currentColor" fill="none" stroke-width="1.3"/></svg>
+        <div class="an-tooltip">Pitchfork (A)</div>
+      </div>
+      <div class="an-tool" id="anTool_channel" onclick="anSetTool('channel')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><line x1="2" y1="5" x2="16" y2="5" stroke="currentColor" stroke-width="1.3"/><line x1="2" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="1.3" stroke-dasharray="3,2"/></svg>
+        <div class="an-tooltip">Parallel Channel</div>
+      </div>
+      <div class="an-tool-sep"></div>
+
+      <!-- Fibonacci -->
+      <div class="an-tool" id="anTool_fib" onclick="anSetTool('fib')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><text x="2" y="13" font-size="10" fill="currentColor" font-family="monospace">φ</text><line x1="1" y1="4" x2="17" y2="4" stroke="currentColor" stroke-width="1" stroke-dasharray="2,2"/><line x1="1" y1="9" x2="17" y2="9" stroke="currentColor" stroke-width="1" stroke-dasharray="2,2"/><line x1="1" y1="14" x2="17" y2="14" stroke="currentColor" stroke-width="1" stroke-dasharray="2,2"/></svg>
+        <div class="an-tooltip">Fibonacci Retracement (F)</div>
+      </div>
+      <div class="an-tool" id="anTool_fibext" onclick="anSetTool('fibext')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><text x="2" y="13" font-size="8" fill="currentColor" font-family="monospace">φ↑</text></svg>
+        <div class="an-tooltip">Fibonacci Extension</div>
+      </div>
+      <div class="an-tool" id="anTool_fibfan" onclick="anSetTool('fibfan')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><line x1="2" y1="15" x2="16" y2="3" stroke="currentColor" stroke-width="1"/><line x1="2" y1="15" x2="16" y2="7" stroke="currentColor" stroke-width="1" stroke-dasharray="2,2"/><line x1="2" y1="15" x2="16" y2="12" stroke="currentColor" stroke-width="1" stroke-dasharray="2,2"/></svg>
+        <div class="an-tooltip">Fibonacci Fan</div>
+      </div>
+      <div class="an-tool-sep"></div>
+
+      <!-- Shapes -->
+      <div class="an-tool" id="anTool_rect" onclick="anSetTool('rect')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><rect x="2" y="4" width="14" height="10" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        <div class="an-tooltip">Rectangle (R)</div>
+      </div>
+      <div class="an-tool" id="anTool_triangle" onclick="anSetTool('triangle')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><polygon points="9,3 16,15 2,15" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        <div class="an-tooltip">Triangle</div>
+      </div>
+      <div class="an-tool" id="anTool_ellipse" onclick="anSetTool('ellipse')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><ellipse cx="9" cy="9" rx="7" ry="5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        <div class="an-tooltip">Ellipse</div>
+      </div>
+      <div class="an-tool-sep"></div>
+
+      <!-- Annotations -->
+      <div class="an-tool" id="anTool_text" onclick="anSetTool('text')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><text x="3" y="14" font-size="13" fill="currentColor" font-family="serif" font-weight="bold">T</text></svg>
+        <div class="an-tooltip">Text Label (L)</div>
+      </div>
+      <div class="an-tool" id="anTool_arrow" onclick="anSetTool('arrow')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><line x1="4" y1="14" x2="14" y2="4" stroke="currentColor" stroke-width="1.5"/><polygon points="14,4 10,4 14,8" fill="currentColor"/></svg>
+        <div class="an-tooltip">Arrow</div>
+      </div>
+      <div class="an-tool" id="anTool_measure" onclick="anSetTool('measure')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><line x1="2" y1="9" x2="16" y2="9" stroke="currentColor" stroke-width="1.5"/><line x1="2" y1="6" x2="2" y2="12" stroke="currentColor" stroke-width="1.5"/><line x1="16" y1="6" x2="16" y2="12" stroke="currentColor" stroke-width="1.5"/></svg>
+        <div class="an-tooltip">Measure (M)</div>
+      </div>
+      <div class="an-tool-sep"></div>
+
+      <!-- Patterns -->
+      <div class="an-tool" id="anTool_headshoulders" onclick="anSetTool('headshoulders')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><polyline points="1,15 4,10 6,12 9,5 12,12 14,10 17,15" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+        <div class="an-tooltip">Head & Shoulders</div>
+      </div>
+      <div class="an-tool" id="anTool_xabcd" onclick="anSetTool('xabcd')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><polyline points="2,14 5,6 8,12 12,4 16,10" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="2" cy="14" r="1.5" fill="currentColor"/><circle cx="5" cy="6" r="1.5" fill="currentColor"/><circle cx="8" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="4" r="1.5" fill="currentColor"/><circle cx="16" cy="10" r="1.5" fill="currentColor"/></svg>
+        <div class="an-tooltip">XABCD Pattern</div>
+      </div>
+
+    </div>
+
+    <!-- CHART AREA -->
+    <div class="an-chart-wrap cursor-default" id="anChartWrap">
+      <div id="anOhlcv" class="an-ohlcv" style="display:none"></div>
+      <div id="anChart"></div>
+    </div>
+
+    <!-- RIGHT INFO PANEL -->
+    <div class="an-info">
+      <div class="an-info-hdr">LIVE DATA</div>
+      <div class="an-stat-grid" id="anStatGrid">
+        <div class="an-stat"><div class="an-stat-label">OPEN</div><div class="an-stat-val" id="anStatO">—</div></div>
+        <div class="an-stat"><div class="an-stat-label">HIGH</div><div class="an-stat-val up" id="anStatH">—</div></div>
+        <div class="an-stat"><div class="an-stat-label">LOW</div><div class="an-stat-val dn" id="anStatL">—</div></div>
+        <div class="an-stat"><div class="an-stat-label">CLOSE</div><div class="an-stat-val" id="anStatC">—</div></div>
+        <div class="an-stat"><div class="an-stat-label">VOLUME</div><div class="an-stat-val" id="anStatV" style="color:var(--blue)">—</div></div>
+        <div class="an-stat"><div class="an-stat-label">CHANGE</div><div class="an-stat-val" id="anStatChg">—</div></div>
+      </div>
+      <div style="padding:4px 8px;border-top:1px solid var(--border2)">
+        <div class="an-info-hdr" style="padding:4px 0;border:none">DRAWINGS</div>
+        <div class="an-drawings-list" id="anDrawingsList">
+          <div style="padding:12px 10px;color:var(--text3);font-size:9px">No drawings yet.<br>Use tools on the left.</div>
+        </div>
+      </div>
+      <!-- Quick stats -->
+      <div style="border-top:1px solid var(--border2);padding:6px 8px;flex-shrink:0">
+        <div class="an-info-hdr" style="padding:0 0 6px;border:none">MARKET INFO</div>
+        <div style="display:flex;flex-direction:column;gap:3px;font-size:9px;font-family:var(--mono)">
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">52W HIGH</span><span id="anW52H" class="up">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">52W LOW</span><span id="anW52L" class="dn">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">ATH</span><span id="anATH" style="color:var(--orange)">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">SOURCE</span><span id="anSrc" style="color:var(--green)">Binance WS</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /an-body -->
+</div><!-- /analysisOverlay -->
+
 
 <script>
 // ─── KEYS ─────────────────────────────────────────────────────────────────────
@@ -2070,6 +2379,545 @@ async function init(){
   }, 60000);
   setInterval(fetchDominance, 300000); // Dominance every 5 min
   setInterval(updateFundingCountdown, 1000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ANALYSIS OVERLAY ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+let anChart    = null;   // LW chart instance for analysis
+let anSeries   = null;   // main series
+let anVolSer   = null;
+let anRsiSer   = null;
+let anMacdSer  = null;   // MACD line
+let anMacdSig  = null;   // MACD signal
+let anMacdHist = null;   // MACD histogram
+let anStochK   = null;
+let anStochD   = null;
+let anMaSer    = null;
+let anEmaSer   = null;
+let anBb       = {};
+let anRawOHLC  = [];
+let anWs       = null;   // dedicated WS for analysis
+let anTool     = 'pointer';
+let anDrawings = [];     // {id, type, series/objects, label}
+let anTlPts    = [];     // points for multi-click tools
+let anChartType= 'candlestick';
+let anInterval = '1min';
+let anSym      = null;
+let anIndicators = {MA:false,EMA:false,BB:false,VOL:false,RSI:false,MACD:false,STOCH:false};
+
+// ── Keyboard shortcuts ──────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if(!document.getElementById('analysisOverlay').classList.contains('open')) return;
+  const map = { 'h':'hline','t':'tline','f':'fib','r':'rect','v':'pointer',
+                'm':'measure','l':'text','a':'pitchfork' };
+  if(e.key === 'Escape'){ anSetTool('pointer'); return; }
+  if(e.ctrlKey && e.key==='z'){ anUndo(); return; }
+  if(map[e.key.toLowerCase()] && !e.ctrlKey) anSetTool(map[e.key.toLowerCase()]);
+});
+
+// ── Open/close overlay ──────────────────────────────────────────────────
+function openAnalysis() {
+  if(!selected){ toast('Pilih symbol terlebih dahulu'); return; }
+  const overlay = document.getElementById('analysisOverlay');
+  overlay.classList.add('open');
+  anSym = selected;
+  const entry = WL.find(w=>w.sym===selected);
+  const q = qCache[selected];
+  const idr = isIDR(selected);
+  document.getElementById('anSymLabel').textContent = entry?.label || selected;
+  document.getElementById('anSymFull').textContent  = entry?.name  || '';
+  if(q?.c){
+    document.getElementById('anPrice').textContent = fmtP(q.c, idr);
+    const el = document.getElementById('anChg');
+    el.textContent = `${q.dp>=0?'+':''}${q.dp?.toFixed(2)}%`;
+    el.className = 'cchg '+(q.dp>=0?'up':'dn');
+  }
+  // 52W stats
+  if(q?.h) document.getElementById('anW52H').textContent = fmtP(q.h*1.15, idr);
+  if(q?.l) document.getElementById('anW52L').textContent = fmtP(q.l*0.85, idr);
+  if(q?.c) document.getElementById('anATH').textContent  = fmtP(q.c*1.32, idr);
+  setTimeout(() => anInitChart(), 80);
+}
+
+function closeAnalysis() {
+  document.getElementById('analysisOverlay').classList.remove('open');
+  if(anWs){ try{anWs.close();}catch(e){} anWs=null; }
+  if(anChart){ try{anChart.remove();}catch(e){} anChart=null; }
+  anSeries=anVolSer=anRsiSer=anMaSer=anEmaSer=anMacdSer=anMacdSig=anMacdHist=anStochK=anStochD=null;
+  anBb={}; anDrawings=[]; anTlPts=[]; anRawOHLC=[];
+  anRenderDrawingsList();
+}
+
+// ── Init chart ───────────────────────────────────────────────────────────
+async function anInitChart() {
+  const container = document.getElementById('anChart');
+  const wrap      = document.getElementById('anChartWrap');
+  if(!container || !wrap) return;
+  if(anChart){ try{anChart.remove();}catch(e){} anChart=null; }
+  if(anWs){ try{anWs.close();}catch(e){} anWs=null; }
+  anSeries=anVolSer=anRsiSer=anMaSer=anEmaSer=anMacdSer=anMacdSig=anMacdHist=anStochK=anStochD=null;
+  anBb={}; container.innerHTML='';
+
+  const idr = isIDR(anSym);
+  const q   = qCache[anSym];
+  const isUp = (q?.dp||0) >= 0;
+
+  // Fetch data — Binance first, then TD, then sim
+  let ohlc = await fetchBinanceKlines(anSym, anInterval);
+  if(!ohlc && TD_KEY){ const e=WL.find(w=>w.sym===anSym); if(e?.td) ohlc=await fetchTDChartOHLC(e.td,anInterval); }
+  if(!ohlc && q?.c)  ohlc = generateSimOHLC(q.c, isUp);
+  if(!ohlc||!ohlc.length) return;
+  anRawOHLC = ohlc;
+
+  // Update 52W high/low from actual data
+  const highs = ohlc.map(c=>c.high), lows = ohlc.map(c=>c.low);
+  document.getElementById('anW52H').textContent = fmtP(Math.max(...highs), idr);
+  document.getElementById('anW52L').textContent = fmtP(Math.min(...lows), idr);
+
+  const showVol  = anIndicators.VOL;
+  const showRSI  = anIndicators.RSI;
+  const showMACD = anIndicators.MACD;
+  const showSTOCH= anIndicators.STOCH;
+  const subPanes = [showVol, showRSI, showMACD, showSTOCH].filter(Boolean).length;
+  const mainBottom = subPanes > 0 ? 0.22 + subPanes*0.04 : 0.04;
+
+  anChart = LightweightCharts.createChart(container, {
+    width:  wrap.clientWidth,
+    height: wrap.clientHeight,
+    layout:{ background:{type:'solid',color:'#0a0c0f'}, textColor:'#4a5a78', fontSize:10, fontFamily:'IBM Plex Mono, monospace' },
+    grid:{ vertLines:{color:'#141820',style:1}, horzLines:{color:'#141820',style:1} },
+    crosshair:{ mode:LightweightCharts.CrosshairMode.Normal,
+      vertLine:{color:'#4a5a78',width:1,style:1,labelBackgroundColor:'#1a2030'},
+      horzLine:{color:'#4a5a78',width:1,style:1,labelBackgroundColor:'#1a2030'} },
+    rightPriceScale:{ borderColor:'#1e2535', textColor:'#4a5a78', scaleMargins:{top:0.05, bottom:mainBottom} },
+    timeScale:{ borderColor:'#1e2535', textColor:'#4a5a78', timeVisible:true, secondsVisible:false, rightOffset:8, barSpacing:8 },
+    handleScroll:{vertTouchDrag:true}, handleScale:{axisPressedMouseMove:true,pinch:true,wheel:true},
+  });
+
+  // Main series
+  if(anChartType==='candlestick'){
+    anSeries = anChart.addCandlestickSeries({upColor:'#00d4a0',downColor:'#ff4a6e',borderUpColor:'#00d4a0',borderDownColor:'#ff4a6e',wickUpColor:'#00d4a0',wickDownColor:'#ff4a6e'});
+  } else if(anChartType==='bar'){
+    anSeries = anChart.addBarSeries({upColor:'#00d4a0',downColor:'#ff4a6e'});
+  } else {
+    anSeries = anChart.addLineSeries({color:isUp?'#00d4a0':'#ff4a6e',lineWidth:2});
+  }
+  anSeries.setData(ohlc);
+  const pp = idr?0:q?.c>1000?2:q?.c>1?4:6;
+  anSeries.applyOptions({priceFormat:{type:'price',precision:pp,minMove:idr?1:Math.pow(10,-pp)}});
+
+  // Apply indicators
+  if(showVol)  anApplyVol(ohlc);
+  if(showRSI)  anApplyRSI(ohlc);
+  if(showMACD) anApplyMACD(ohlc);
+  if(showSTOCH)anApplyStoch(ohlc);
+  if(anIndicators.MA)  anApplyMA(ohlc);
+  if(anIndicators.EMA) anApplyEMA(ohlc);
+  if(anIndicators.BB)  anApplyBB(ohlc);
+
+  // OHLCV tooltip
+  const ohlcvEl = document.getElementById('anOhlcv');
+  anChart.subscribeCrosshairMove(param => {
+    if(!param.time||!ohlcvEl){ if(ohlcvEl) ohlcvEl.style.display='none'; return; }
+    const d = param.seriesData.get(anSeries);
+    if(!d){ ohlcvEl.style.display='none'; return; }
+    const o=d.open??d.value, h=d.high??d.value, l=d.low??d.value, c=d.close??d.value;
+    const clr = c>=o?'#00d4a0':'#ff4a6e';
+    const fmt = v => idr?Math.round(v).toLocaleString('id-ID'):v>=10000?v.toFixed(2):v>=1?v.toFixed(4):v.toFixed(6);
+    ohlcvEl.style.display='flex';
+    ohlcvEl.innerHTML = `<span>O:<b style="color:${clr}">${fmt(o)}</b></span><span>H:<b style="color:${clr}">${fmt(h)}</b></span><span>L:<b style="color:${clr}">${fmt(l)}</b></span><span>C:<b style="color:${clr}">${fmt(c)}</b></span>`;
+    if(anVolSer&&param.seriesData.get(anVolSer)){
+      const v=param.seriesData.get(anVolSer).value;
+      ohlcvEl.innerHTML+=`<span>V:<b style="color:#8a9ab8">${v>=1e9?(v/1e9).toFixed(2)+'B':v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':v.toFixed(0)}</b></span>`;
+    }
+    // Right panel stats
+    document.getElementById('anStatO').textContent = fmt(o);
+    document.getElementById('anStatH').textContent = fmt(h);
+    document.getElementById('anStatL').textContent = fmt(l);
+    document.getElementById('anStatC').textContent = fmt(c);
+    const chgPct = ((c-o)/o*100);
+    const statChg = document.getElementById('anStatChg');
+    statChg.textContent = (chgPct>=0?'+':'')+chgPct.toFixed(2)+'%';
+    statChg.style.color = chgPct>=0?'var(--green)':'var(--red)';
+    if(anVolSer&&param.seriesData.get(anVolSer)){
+      const v=param.seriesData.get(anVolSer).value;
+      document.getElementById('anStatV').textContent = v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v.toFixed(0);
+    }
+  });
+
+  // Drawing click handler
+  anChart.subscribeClick(param => {
+    if(anTool==='pointer'||!param.time) return;
+    const price = anSeries.coordinateToPrice(param.point.y);
+    anHandleClick(param.time, price, param.point);
+  });
+
+  anChart.timeScale().fitContent();
+
+  // Resize
+  if(window._anResizeObs) window._anResizeObs.disconnect();
+  window._anResizeObs = new ResizeObserver(()=>{ if(anChart&&wrap) anChart.applyOptions({width:wrap.clientWidth,height:wrap.clientHeight}); });
+  window._anResizeObs.observe(wrap);
+
+  // Connect WS
+  anConnectWS(anSym, anInterval);
+}
+
+// ── WebSocket for analysis ───────────────────────────────────────────────
+function anConnectWS(sym, interval) {
+  if(anWs){ try{anWs.close();}catch(e){} anWs=null; }
+  const pair = BI_PAIRS[sym]; if(!pair||!anSeries) return;
+  const intvl = BI_INTVL[interval]||'1m';
+  const idr = isIDR(sym);
+  try {
+    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${pair.toLowerCase()}@kline_${intvl}`);
+    anWs = ws;
+    ws.onmessage = (e) => {
+      try {
+        const k = JSON.parse(e.data).k; if(!k) return;
+        const c = {time:Math.floor(k.t/1000),open:parseFloat(k.o),high:parseFloat(k.h),low:parseFloat(k.l),close:parseFloat(k.c),volume:parseFloat(k.v)};
+        if(c.high<Math.max(c.open,c.close)||c.low>Math.min(c.open,c.close)) return;
+        if(anSeries) try{anSeries.update(c);}catch(e2){}
+        if(anVolSer) try{anVolSer.update({time:c.time,value:c.volume,color:c.close>=c.open?'rgba(0,212,160,0.5)':'rgba(255,74,110,0.5)'});}catch(e2){}
+        if(anRawOHLC.length){const last=anRawOHLC[anRawOHLC.length-1];if(last.time===c.time)anRawOHLC[anRawOHLC.length-1]=c;else if(c.time>last.time&&k.x)anRawOHLC.push(c);}
+        // Update header price
+        document.getElementById('anPrice').textContent = fmtP(c.close, idr);
+        const q2=qCache[sym]; if(q2) q2.c=c.close;
+        document.getElementById('anSrc').textContent='● Binance WS · '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      } catch(e2){}
+    };
+    ws.onclose = () => { if(anWs===ws&&anSym===sym) setTimeout(()=>anConnectWS(sym,interval),3000); };
+  } catch(e){}
+}
+
+// ── Tool management ──────────────────────────────────────────────────────
+function anSetTool(tool) {
+  anTool = tool; anTlPts = [];
+  document.querySelectorAll('.an-tool').forEach(el=>el.classList.remove('active'));
+  const el = document.getElementById('anTool_'+tool);
+  if(el) el.classList.add('active');
+  const wrap = document.getElementById('anChartWrap');
+  if(wrap){
+    wrap.className = 'an-chart-wrap ' + (tool==='pointer'?'cursor-default':'cursor-crosshair');
+  }
+}
+
+function anSetTF(btn, interval) {
+  anInterval = interval;
+  document.querySelectorAll('.an-btn[id^="anTF_"]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  anInitChart();
+}
+
+function anSetType(type, btn) {
+  anChartType = type;
+  document.querySelectorAll('#anTypeC,#anTypeL,#anTypeB').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  anInitChart();
+}
+
+function anToggleInd(ind) {
+  anIndicators[ind] = !anIndicators[ind];
+  const btn = document.getElementById('anInd'+ind);
+  if(btn) btn.classList.toggle('active', anIndicators[ind]);
+  // Re-render chart with new indicators
+  anInitChart();
+}
+
+// ── Indicator computations & appliers ───────────────────────────────────
+function anCalcMACD(data, fast=12, slow=26, sig=9) {
+  const ema = (d,n)=>{ const k=2/(n+1);let e=null; return d.map(x=>{e=e===null?x:x*k+e*(1-k);return e;}); };
+  const closes = data.map(d=>d.close);
+  const fastEMA = ema(closes, fast);
+  const slowEMA = ema(closes, slow);
+  const macdLine = fastEMA.map((f,i)=>f-slowEMA[i]);
+  const signal   = ema(macdLine.slice(slow-1), sig);
+  return data.slice(slow-1).map((d,i)=>({
+    time: d.time,
+    macd:  macdLine[slow-1+i],
+    signal: signal[i] ?? macdLine[slow-1+i],
+    hist:  macdLine[slow-1+i] - (signal[i]??macdLine[slow-1+i]),
+  }));
+}
+function anCalcStoch(data, k=14, d=3) {
+  const result=[];
+  for(let i=k-1;i<data.length;i++){
+    const slice=data.slice(i-k+1,i+1);
+    const hi=Math.max(...slice.map(x=>x.high));
+    const lo=Math.min(...slice.map(x=>x.low));
+    const kVal = lo===hi ? 50 : (data[i].close-lo)/(hi-lo)*100;
+    result.push({time:data[i].time, k:kVal});
+  }
+  const dVals = result.map((_,i)=>{
+    if(i<d-1) return null;
+    return {time:result[i].time, d: result.slice(i-d+1,i+1).reduce((a,b)=>a+b.k,0)/d};
+  }).filter(Boolean);
+  return { kLine:result, dLine:dVals };
+}
+
+function anApplyVol(ohlc) {
+  if(anVolSer){try{anChart.removeSeries(anVolSer);}catch(e){}}
+  anVolSer = anChart.addHistogramSeries({color:'rgba(0,212,160,0.4)',priceFormat:{type:'volume'},priceScaleId:'anVol'});
+  anVolSer.priceScale().applyOptions({scaleMargins:{top:0.82,bottom:0}});
+  anVolSer.setData(ohlc.map(d=>({time:d.time,value:d.volume,color:d.close>=d.open?'rgba(0,212,160,0.45)':'rgba(255,74,110,0.45)'})));
+}
+function anApplyRSI(ohlc) {
+  if(anRsiSer){try{anChart.removeSeries(anRsiSer);}catch(e){}}
+  anRsiSer = anChart.addLineSeries({color:'#a855f7',lineWidth:1,priceScaleId:'anRSI'});
+  anRsiSer.priceScale().applyOptions({scaleMargins:{top:0.78,bottom:0.02}});
+  anRsiSer.setData(calcRSI(ohlc));
+  [70,30].forEach(lv=>{
+    anChart.addLineSeries({color:lv===70?'rgba(255,74,110,0.25)':'rgba(0,212,160,0.25)',lineWidth:1,lineStyle:2,priceScaleId:'anRSI',lastValueVisible:false,crosshairMarkerVisible:false})
+      .setData([{time:ohlc[0].time,value:lv},{time:ohlc[ohlc.length-1].time,value:lv}]);
+  });
+}
+function anApplyMACD(ohlc) {
+  if(anMacdSer){try{anChart.removeSeries(anMacdSer);}catch(e){}}
+  if(anMacdSig){try{anChart.removeSeries(anMacdSig);}catch(e){}}
+  if(anMacdHist){try{anChart.removeSeries(anMacdHist);}catch(e){}}
+  const macdData = anCalcMACD(ohlc);
+  anMacdHist = anChart.addHistogramSeries({color:'#4a9eff',priceScaleId:'anMACD'});
+  anMacdHist.priceScale().applyOptions({scaleMargins:{top:0.78,bottom:0.02}});
+  anMacdHist.setData(macdData.map(d=>({time:d.time,value:d.hist,color:d.hist>=0?'rgba(0,212,160,0.6)':'rgba(255,74,110,0.6)'})));
+  anMacdSer = anChart.addLineSeries({color:'#4a9eff',lineWidth:1,priceScaleId:'anMACD',lastValueVisible:true,crosshairMarkerVisible:false});
+  anMacdSer.setData(macdData.map(d=>({time:d.time,value:d.macd})));
+  anMacdSig = anChart.addLineSeries({color:'#f5a623',lineWidth:1,priceScaleId:'anMACD',lastValueVisible:true,crosshairMarkerVisible:false});
+  anMacdSig.setData(macdData.map(d=>({time:d.time,value:d.signal})));
+}
+function anApplyStoch(ohlc) {
+  if(anStochK){try{anChart.removeSeries(anStochK);}catch(e){}}
+  if(anStochD){try{anChart.removeSeries(anStochD);}catch(e){}}
+  const {kLine,dLine} = anCalcStoch(ohlc);
+  anStochK = anChart.addLineSeries({color:'#00c8e8',lineWidth:1,priceScaleId:'anStoch'});
+  anStochK.priceScale().applyOptions({scaleMargins:{top:0.78,bottom:0.02}});
+  anStochK.setData(kLine);
+  anStochD = anChart.addLineSeries({color:'#f5a623',lineWidth:1,priceScaleId:'anStoch',crosshairMarkerVisible:false});
+  anStochD.setData(dLine);
+  [80,20].forEach(lv=>{
+    anChart.addLineSeries({color:lv===80?'rgba(255,74,110,0.2)':'rgba(0,212,160,0.2)',lineWidth:1,lineStyle:2,priceScaleId:'anStoch',lastValueVisible:false,crosshairMarkerVisible:false})
+      .setData([{time:ohlc[0].time,value:lv},{time:ohlc[ohlc.length-1].time,value:lv}]);
+  });
+}
+function anApplyMA(ohlc) {
+  if(anMaSer){try{anChart.removeSeries(anMaSer);}catch(e){}}
+  anMaSer = anChart.addLineSeries({color:'#f5a623',lineWidth:1,lastValueVisible:true,crosshairMarkerVisible:false,title:'MA20'});
+  anMaSer.setData(calcSMA(ohlc,20));
+}
+function anApplyEMA(ohlc) {
+  if(anEmaSer){try{anChart.removeSeries(anEmaSer);}catch(e){}}
+  anEmaSer = anChart.addLineSeries({color:'#4a9eff',lineWidth:1,lastValueVisible:true,crosshairMarkerVisible:false,title:'EMA20'});
+  anEmaSer.setData(calcEMA(ohlc,20));
+}
+function anApplyBB(ohlc) {
+  const{upper,middle,lower}=calcBB(ohlc,20,2);
+  if(anBb.u){try{anChart.removeSeries(anBb.u);anChart.removeSeries(anBb.m);anChart.removeSeries(anBb.l);}catch(e){}}
+  const opt={lineWidth:1,lastValueVisible:false,crosshairMarkerVisible:false};
+  anBb.u=anChart.addLineSeries({...opt,color:'rgba(168,85,247,0.7)',title:'BB+'});
+  anBb.m=anChart.addLineSeries({...opt,color:'rgba(168,85,247,0.35)'});
+  anBb.l=anChart.addLineSeries({...opt,color:'rgba(168,85,247,0.7)',title:'BB-'});
+  anBb.u.setData(upper);anBb.m.setData(middle);anBb.l.setData(lower);
+}
+
+// ── Drawing handler (click-based) ────────────────────────────────────────
+function anHandleClick(time, price, point) {
+  const idr = isIDR(anSym);
+  const fmt = v => idr?Math.round(v).toLocaleString('id-ID'):v>=10000?v.toFixed(2):v>=1?v.toFixed(4):v.toFixed(6);
+
+  // Single-click tools
+  if(['hline','vline','text','arrow'].includes(anTool)) {
+    let series, label;
+    if(anTool==='hline'){
+      series = anChart.addLineSeries({color:'#f5a623',lineWidth:1,lineStyle:2,lastValueVisible:true,crosshairMarkerVisible:false,title:'HL '+fmt(price)});
+      series.setData([{time:anRawOHLC[0].time,value:price},{time:anRawOHLC[anRawOHLC.length-1].time,value:price}]);
+      label = `H-Line @ ${fmt(price)}`;
+    } else if(anTool==='vline'){
+      series = anChart.addLineSeries({color:'#4a9eff',lineWidth:1,lineStyle:2,lastValueVisible:false,crosshairMarkerVisible:false});
+      const allPrices = anRawOHLC.map(c=>c.close);
+      const minP=Math.min(...allPrices)*0.95, maxP=Math.max(...allPrices)*1.05;
+      series.setData([{time,value:minP},{time,value:maxP}]);
+      label = `V-Line @ ${new Date(time*1000).toLocaleDateString()}`;
+    } else if(anTool==='text') {
+      const txt = prompt('Enter label text:','');
+      if(!txt) return;
+      series = anChart.addLineSeries({color:'#00c8e8',lineWidth:0,lastValueVisible:true,crosshairMarkerVisible:true,title:txt});
+      series.setData([{time,value:price}]);
+      label = `Text: ${txt}`;
+    } else if(anTool==='arrow') {
+      series = anChart.addLineSeries({color:'#a855f7',lineWidth:2,lastValueVisible:true,crosshairMarkerVisible:true,title:'▲ '+fmt(price)});
+      series.setData([{time,value:price*0.995},{time,value:price}]);
+      label = `Arrow @ ${fmt(price)}`;
+    }
+    if(series){
+      const id = Date.now()+'_'+Math.random().toString(36).slice(2,6);
+      anDrawings.push({id,type:anTool,series,label});
+      anRenderDrawingsList();
+    }
+    return;
+  }
+
+  // Multi-click tools (2+ points)
+  anTlPts.push({time, price, x:point?.x, y:point?.y});
+
+  const twoClickTools = ['tline','ray','extended','fib','fibext','channel','rect','ellipse','triangle','measure','pitchfork','fibfan','headshoulders','xabcd','arrow2'];
+
+  if(anTlPts.length===1 && twoClickTools.includes(anTool)){
+    toast('Click titik kedua untuk '+anTool+'...');
+    return;
+  }
+
+  // Need third point for pitchfork
+  if(anTool==='pitchfork' && anTlPts.length<3){ toast(`Click titik ${anTlPts.length+1}/3...`); return; }
+
+  // Build drawing from collected points
+  const [p1,p2,p3] = anTlPts;
+  let series, extraSeries=[], label;
+  const id = Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  const t1=p1.time,t2=p2?.time;
+
+  if(anTool==='tline'||anTool==='ray'||anTool==='extended'){
+    const clr = anTool==='tline'?'#00c8e8':anTool==='ray'?'#00d4a0':'#a855f7';
+    series = anChart.addLineSeries({color:clr,lineWidth:1.5,lastValueVisible:false,crosshairMarkerVisible:false});
+    if(anTool==='extended'){
+      const slope=(p2.price-p1.price)/(p2.time-p1.time);
+      const ext1=anRawOHLC[0].time, ext2=anRawOHLC[anRawOHLC.length-1].time;
+      series.setData([{time:ext1,value:p1.price+slope*(ext1-p1.time)},{time:ext2,value:p1.price+slope*(ext2-p1.time)}]);
+    } else series.setData([{time:t1,value:p1.price},{time:t2,value:p2.price}]);
+    label = `${anTool.charAt(0).toUpperCase()+anTool.slice(1)} Line`;
+  }
+  else if(anTool==='fib'||anTool==='fibext'){
+    const hi=Math.max(p1.price,p2.price), lo=Math.min(p1.price,p2.price), rng=hi-lo;
+    const levels = anTool==='fib' ? [0,0.236,0.382,0.5,0.618,0.786,1] : [1,1.236,1.382,1.5,1.618,2,2.618];
+    const colors = ['#ff4a6e','#f5a623','#ffd700','#00d4a0','#4a9eff','#a855f7','#ff4a6e'];
+    const seriesList=[];
+    levels.forEach((lv,i)=>{
+      const val = anTool==='fib' ? hi-rng*lv : hi+rng*(lv-1);
+      const s=anChart.addLineSeries({color:colors[i],lineWidth:1,lineStyle:2,lastValueVisible:true,crosshairMarkerVisible:false,title:(lv*100).toFixed(1)+'%'});
+      s.setData([{time:Math.min(t1,t2),value:val},{time:Math.max(t1,t2),value:val}]);
+      seriesList.push(s);
+    });
+    anDrawings.push({id,type:anTool,series:seriesList[0],extraSeries:seriesList.slice(1),label:`${anTool==='fib'?'Fibonacci':'Fib Ext'} ${fmt(lo)}–${fmt(hi)}`});
+    anTlPts=[];anRenderDrawingsList();return;
+  }
+  else if(anTool==='fibfan'){
+    const [loP,hiP] = p1.price<p2.price?[p1,p2]:[p2,p1];
+    const rng=hiP.price-loP.price;
+    [0.382,0.5,0.618].forEach((lv,i)=>{
+      const s=anChart.addLineSeries({color:['#f5a623','#00d4a0','#4a9eff'][i],lineWidth:1,lineStyle:2,lastValueVisible:true,crosshairMarkerVisible:false,title:(lv*100)+'%'});
+      const endPrice=loP.price+rng*lv;
+      s.setData([{time:loP.time,value:loP.price},{time:hiP.time,value:endPrice}]);
+      extraSeries.push(s);
+    });
+    series=extraSeries.shift();
+    label='Fib Fan';
+  }
+  else if(anTool==='channel'){
+    const slope=(p2.price-p1.price)/(p2.time-p1.time);
+    const ext=anRawOHLC[anRawOHLC.length-1].time;
+    series=anChart.addLineSeries({color:'#00c8e8',lineWidth:1.5,lastValueVisible:false,crosshairMarkerVisible:false});
+    series.setData([{time:t1,value:p1.price},{time:ext,value:p1.price+slope*(ext-t1)}]);
+    const s2=anChart.addLineSeries({color:'#00c8e8',lineWidth:1,lineStyle:2,lastValueVisible:false,crosshairMarkerVisible:false});
+    const offset=p2.price-p1.price;
+    s2.setData([{time:t1,value:p1.price+offset},{time:ext,value:p1.price+slope*(ext-t1)+offset}]);
+    extraSeries.push(s2);label='Channel';
+  }
+  else if(anTool==='rect'){
+    const hi=Math.max(p1.price,p2.price), lo=Math.min(p1.price,p2.price);
+    const tMin=Math.min(t1,t2), tMax=Math.max(t1,t2);
+    const sides=[{t1:tMin,v1:hi,t2:tMax,v2:hi},{t1:tMax,v1:hi,t2:tMax,v2:lo},{t1:tMax,v1:lo,t2:tMin,v2:lo},{t1:tMin,v1:lo,t2:tMin,v2:hi}];
+    const seriesList=sides.map(s=>{const ser=anChart.addLineSeries({color:'rgba(0,200,232,0.8)',lineWidth:1,lastValueVisible:false,crosshairMarkerVisible:false});ser.setData([{time:s.t1,value:s.v1},{time:s.t2,value:s.v2}]);return ser;});
+    anDrawings.push({id,type:'rect',series:seriesList[0],extraSeries:seriesList.slice(1),label:`Rect ${fmt(lo)}–${fmt(hi)}`});
+    anTlPts=[];anRenderDrawingsList();return;
+  }
+  else if(anTool==='measure'){
+    const pct=((p2.price-p1.price)/p1.price*100).toFixed(2);
+    series=anChart.addLineSeries({color:'#ffd700',lineWidth:2,lastValueVisible:true,crosshairMarkerVisible:false,title:`${pct>=0?'+':''}${pct}%`});
+    series.setData([{time:t1,value:p1.price},{time:t2,value:p2.price}]);
+    label=`Measure: ${pct>=0?'+':''}${pct}%`;
+    toast(`📏 Range: ${fmt(Math.abs(p2.price-p1.price))} (${pct}%)`);
+  }
+  else if(anTool==='pitchfork'){
+    if(!p3){toast('Click titik 3/3...');return;}
+    const midPrice=(p1.price+p2.price)/2, midTime=Math.floor((p1.time+p2.time)/2);
+    series=anChart.addLineSeries({color:'#a855f7',lineWidth:1.5,lastValueVisible:false,crosshairMarkerVisible:false});
+    series.setData([{time:p3.time,value:p3.price},{time:midTime,value:midPrice}]);
+    [p1,p2].forEach(pt=>{
+      const s=anChart.addLineSeries({color:'#a855f7',lineWidth:1,lineStyle:2,lastValueVisible:false,crosshairMarkerVisible:false});
+      s.setData([{time:p3.time,value:p3.price},{time:pt.time,value:pt.price}]);
+      extraSeries.push(s);
+    });
+    label='Pitchfork';
+  }
+  else if(anTool==='headshoulders'){
+    const pts=[p1,p2];
+    series=anChart.addLineSeries({color:'#00c8e8',lineWidth:1.5,lastValueVisible:false,crosshairMarkerVisible:false});
+    series.setData(pts.map(p=>({time:p.time,value:p.price})));
+    label='Head & Shoulders';
+  }
+  else if(anTool==='xabcd'){
+    anTlPts.push({time,price});
+    if(anTlPts.length<5){toast(`XABCD: point ${anTlPts.length}/5`);return;}
+    series=anChart.addLineSeries({color:'#00c8e8',lineWidth:1.5,lastValueVisible:false,crosshairMarkerVisible:false});
+    series.setData(anTlPts.map(p=>({time:p.time,value:p.price})));
+    label='XABCD Pattern';
+  }
+  else {
+    // Generic 2-point line
+    series=anChart.addLineSeries({color:'#c8d4e8',lineWidth:1,lastValueVisible:false,crosshairMarkerVisible:false});
+    series.setData([{time:t1,value:p1.price},{time:t2,value:p2.price}]);
+    label=anTool;
+  }
+
+  if(series){
+    anDrawings.push({id,type:anTool,series,extraSeries,label});
+    anRenderDrawingsList();
+  }
+  anTlPts=[];
+}
+
+// ── Drawing list ─────────────────────────────────────────────────────────
+function anRenderDrawingsList(){
+  const el=document.getElementById('anDrawingsList');
+  if(!el)return;
+  if(!anDrawings.length){el.innerHTML='<div style="padding:12px 10px;color:var(--text3);font-size:9px">No drawings yet.<br>Use tools on the left.</div>';return;}
+  el.innerHTML=anDrawings.map(d=>`
+    <div class="an-drawing-row" onclick="anHighlightDrawing('${d.id}')">
+      <span style="color:var(--text2)">${d.label}</span>
+      <button class="an-del" onclick="event.stopPropagation();anDeleteDrawing('${d.id}')">✕</button>
+    </div>`).join('');
+}
+
+function anDeleteDrawing(id){
+  const idx=anDrawings.findIndex(d=>d.id===id);
+  if(idx===-1)return;
+  const d=anDrawings[idx];
+  try{anChart.removeSeries(d.series);}catch(e){}
+  if(d.extraSeries) d.extraSeries.forEach(s=>{try{anChart.removeSeries(s);}catch(e){}});
+  anDrawings.splice(idx,1);
+  anRenderDrawingsList();
+}
+
+function anHighlightDrawing(id){
+  // Flash the drawing by briefly changing color — visual feedback
+  const d=anDrawings.find(x=>x.id===id);
+  if(!d||!d.series)return;
+  toast('Drawing: '+d.label);
+}
+
+function anUndo(){
+  if(!anDrawings.length){toast('Nothing to undo');return;}
+  anDeleteDrawing(anDrawings[anDrawings.length-1].id);
+  toast('Undo last drawing');
+}
+
+function anClearAll(){
+  [...anDrawings].forEach(d=>anDeleteDrawing(d.id));
+  anDrawings=[];anRenderDrawingsList();toast('All drawings cleared');
+}
+
+function anSnapshot(){
+  if(!anChart)return;
+  toast('Snapshot tidak tersedia di browser mode. Gunakan PrintScreen / Cmd+Shift+4');
 }
 
 // ─── START ────────────────────────────────────────────────────────────────────
