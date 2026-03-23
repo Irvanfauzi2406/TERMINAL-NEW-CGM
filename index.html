@@ -3738,41 +3738,47 @@ window.addEventListener('resize', () => {
   }
 
   // ─────────────────────────────────────────────
-  // LIVE ticker updates (fetch from Binance)
   // ─────────────────────────────────────────────
-  const tickers = [
-    { sym:'BTC', pair:'BTCUSDT', pEl:'wt-btc-p', cEl:'wt-btc-c', mEl:'wt-btc-m' },
-    { sym:'ETH', pair:'ETHUSDT', pEl:'wt-eth-p', cEl:'wt-eth-c', mEl:'wt-eth-m' },
-    { sym:'SOL', pair:'SOLUSDT', pEl:'wt-sol-p', cEl:'wt-sol-c', mEl:'wt-sol-m' },
-    { sym:'BNB', pair:'BNBUSDT', pEl:'wt-bnb-p', cEl:'wt-bnb-c', mEl:'wt-bnb-m' },
-    { sym:'XRP', pair:'XRPUSDT', pEl:'wt-xrp-p', cEl:'wt-xrp-c', mEl:'wt-xrp-m' },
-  ];
+  // LIVE ticker updates (via CoinGecko)
+  // ─────────────────────────────────────────────
 
   async function fetchTickers() {
     try {
-      const pairs = tickers.map(t => '"' + t.pair + '"').join(',');
-      const r = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbols=[' + pairs + ']');
+      // Use CoinGecko — no CORS issues, no certificate problems
+      const ids = 'bitcoin,ethereum,solana,binancecoin,ripple';
+      const r = await fetch(
+        'https://api.coingecko.com/api/v3/simple/price?ids=' + ids +
+        '&vs_currencies=usd&include_24hr_change=true',
+        { signal: (()=>{ const c=new AbortController(); setTimeout(()=>c.abort(),6000); return c.signal; })() }
+      );
       if (!r.ok) return;
       const data = await r.json();
-      data.forEach(d => {
-        const t = tickers.find(t => t.pair === d.symbol);
-        if (!t) return;
-        const price = parseFloat(d.lastPrice);
-        const chg   = parseFloat(d.priceChangePercent);
+      const map = {
+        'wt-btc': { id:'bitcoin',     dec:2 },
+        'wt-eth': { id:'ethereum',    dec:2 },
+        'wt-sol': { id:'solana',      dec:2 },
+        'wt-bnb': { id:'binancecoin', dec:2 },
+        'wt-xrp': { id:'ripple',      dec:4 },
+      };
+      Object.entries(map).forEach(([prefix, cfg]) => {
+        const d = data[cfg.id];
+        if (!d) return;
+        const price = d.usd;
+        const chg   = d.usd_24h_change || 0;
         const isUp  = chg >= 0;
-        const pEl = document.getElementById(t.pEl);
-        const cEl = document.getElementById(t.cEl);
-        const item = pEl?.closest('.wg-ticker-item');
-        if (pEl) pEl.textContent = '$' + price.toLocaleString(undefined, { minimumFractionDigits: price < 10 ? 4 : 2, maximumFractionDigits: price < 10 ? 4 : 2 });
+        const pEl   = document.getElementById(prefix + '-p');
+        const cEl   = document.getElementById(prefix + '-c');
+        const item  = pEl?.closest('.wg-ticker-item');
+        if (pEl) pEl.textContent = '$' + price.toLocaleString(undefined, { minimumFractionDigits: cfg.dec, maximumFractionDigits: cfg.dec });
         if (cEl) {
           cEl.textContent = (isUp ? '+' : '') + chg.toFixed(2) + '%';
           cEl.className   = 'wg-ticker-chg ' + (isUp ? 'up' : 'dn');
         }
-        if (item) {
-          item.className = 'wg-ticker-item ' + (isUp ? 'up' : 'dn');
-        }
+        if (item) item.className = 'wg-ticker-item ' + (isUp ? 'up' : 'dn');
+        // Redraw sparkline with correct direction
+        drawMiniSparkline(prefix + '-m', isUp);
       });
-    } catch(e) {}
+    } catch(e) { /* silent fail — static prices remain */ }
   }
 
   // ─────────────────────────────────────────────
@@ -3828,15 +3834,12 @@ window.addEventListener('resize', () => {
   // ─────────────────────────────────────────────
   function boot() {
     initBgChart();
-    // Sparklines
-    tickers.forEach(t => {
-      const item = document.getElementById(t.cEl);
-      const isUp = item ? !item.classList.contains('dn') : true;
-      drawMiniSparkline(t.mEl, isUp);
-    });
+    // Draw initial sparklines (static until live data arrives)
+    ['wt-btc','wt-eth','wt-bnb'].forEach(p => drawMiniSparkline(p+'-m', true));
+    ['wt-sol','wt-xrp'].forEach(p => drawMiniSparkline(p+'-m', false));
     // Fetch live prices
     fetchTickers();
-    setInterval(fetchTickers, 5000);
+    setInterval(fetchTickers, 8000);
     // Stream text
     cycleStream();
     setInterval(cycleStream, 2200);
