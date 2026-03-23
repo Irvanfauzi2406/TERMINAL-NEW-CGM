@@ -3810,44 +3810,8 @@ window.addEventListener('resize', () => {
   // LIVE ticker updates (via CoinGecko)
   // ─────────────────────────────────────────────
 
-  async function fetchTickers() {
-    try {
-      // Use CoinGecko — no CORS issues, no certificate problems
-      const ids = 'bitcoin,ethereum,solana,binancecoin,ripple';
-      const r = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=' + ids +
-        '&vs_currencies=usd&include_24hr_change=true',
-        { signal: (()=>{ const c=new AbortController(); setTimeout(()=>c.abort(),6000); return c.signal; })() }
-      );
-      if (!r.ok) return;
-      const data = await r.json();
-      const map = {
-        'wt-btc': { id:'bitcoin',     dec:2 },
-        'wt-eth': { id:'ethereum',    dec:2 },
-        'wt-sol': { id:'solana',      dec:2 },
-        'wt-bnb': { id:'binancecoin', dec:2 },
-        'wt-xrp': { id:'ripple',      dec:4 },
-      };
-      Object.entries(map).forEach(([prefix, cfg]) => {
-        const d = data[cfg.id];
-        if (!d) return;
-        const price = d.usd;
-        const chg   = d.usd_24h_change || 0;
-        const isUp  = chg >= 0;
-        const pEl   = document.getElementById(prefix + '-p');
-        const cEl   = document.getElementById(prefix + '-c');
-        const item  = pEl?.closest('.wg-ticker-item');
-        if (pEl) pEl.textContent = '$' + price.toLocaleString(undefined, { minimumFractionDigits: cfg.dec, maximumFractionDigits: cfg.dec });
-        if (cEl) {
-          cEl.textContent = (isUp ? '+' : '') + chg.toFixed(2) + '%';
-          cEl.className   = 'wg-ticker-chg ' + (isUp ? 'up' : 'dn');
-        }
-        if (item) item.className = 'wg-ticker-item ' + (isUp ? 'up' : 'dn');
-        // Redraw sparkline with correct direction
-        drawMiniSparkline(prefix + '-m', isUp);
-      });
-    } catch(e) { /* silent fail — static prices remain */ }
-  }
+  // fetchTickers removed — static prices shown to avoid CORS errors
+  async function fetchTickers() { /* disabled */ }
 
   // ─────────────────────────────────────────────
   // Streaming status text
@@ -3906,8 +3870,7 @@ window.addEventListener('resize', () => {
     ['wt-btc','wt-eth','wt-bnb'].forEach(p => drawMiniSparkline(p+'-m', true));
     ['wt-sol','wt-xrp'].forEach(p => drawMiniSparkline(p+'-m', false));
     // Fetch live prices
-    fetchTickers();
-    setInterval(fetchTickers, 8000);
+    // fetchTickers disabled (CORS);
     // Stream text
     cycleStream();
     setInterval(cycleStream, 2200);
@@ -3944,26 +3907,32 @@ function toggleDepth() {
   if (cv)  cv.classList.toggle('visible', depthVisible);
 
   if (depthVisible) {
-    depthInitCanvas();
-    if (lwCurrentSym) depthConnect(lwCurrentSym);
+    // Small delay to ensure DOM has rendered dimensions
+    setTimeout(() => {
+      depthInitCanvas();
+      if (!depthCtx) { depthVisible = false; btn?.classList.remove('active'); cv?.classList.remove('visible'); return; }
+      if (lwCurrentSym) depthConnect(lwCurrentSym);
+      else depthStartDraw(); // show empty state
+    }, 60);
   } else {
     depthDisconnect();
     if (depthRAF) { cancelAnimationFrame(depthRAF); depthRAF = null; }
     if (depthCtx && depthCanvas_) {
       depthCtx.clearRect(0, 0, depthCanvas_.width, depthCanvas_.height);
     }
-    // Restore LW chart right margin
-    if (lwc) lwc.applyOptions({ rightPriceScale: { scaleMargins: { top:0.05, bottom:0.04 } } });
   }
 }
 
-// ── Init canvas size
+// ── Init canvas size — robust version
 function depthInitCanvas() {
   depthCanvas_ = document.getElementById('depthCanvas');
-  const area   = document.getElementById('chartArea');
-  if (!depthCanvas_ || !area) return;
+  if (!depthCanvas_) return;
+  const area = document.getElementById('chartArea');
+  let h = area ? area.clientHeight : 0;
+  // Fallback: use window height minus header estimates
+  if (!h || h < 50) h = window.innerHeight - 120;
   depthCanvas_.width  = DEPTH_W;
-  depthCanvas_.height = area.clientHeight;
+  depthCanvas_.height = h;
   depthCtx = depthCanvas_.getContext('2d');
 }
 
@@ -4033,6 +4002,14 @@ function depthCumulative(levels) {
 function depthStartDraw() {
   if (depthRAF) cancelAnimationFrame(depthRAF);
   function frame() {
+    // Ensure canvas has valid height
+    if (depthCanvas_ && depthCanvas_.height < 10) {
+      const area = document.getElementById('chartArea');
+      if (area && area.clientHeight > 10) {
+        depthCanvas_.height = area.clientHeight;
+        depthCtx = depthCanvas_.getContext('2d');
+      }
+    }
     depthDraw();
     if (depthVisible) depthRAF = requestAnimationFrame(frame);
   }
