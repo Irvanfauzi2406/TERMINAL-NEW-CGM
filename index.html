@@ -1130,6 +1130,8 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
       <button class="an-btn" onclick="anClearAll()" style="color:var(--red);border-color:rgba(255,74,110,.3)">✕ CLR</button>
       <button class="an-btn" onclick="anUndo()" title="Undo last drawing">↩ UNDO</button>
       <button class="an-btn" onclick="anSnapshot()" title="Save chart as image">📷 SNAP</button>
+      <div class="an-sep"></div>
+      <button class="an-btn" id="anDepthBtn" onclick="anToggleDepth()" title="Order Book Depth" style="color:#00d4a0;border-color:rgba(0,212,160,.3)">&#9647; DEPTH</button>
     </div>
 
     <button class="an-close" onclick="closeAnalysis()">✕ &nbsp; TUTUP</button>
@@ -1243,6 +1245,7 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
       <div id="anOhlcv" class="an-ohlcv" style="display:none"></div>
       <div id="anChart"></div>
       <canvas id="anCanvas"></canvas>
+      <canvas id="anDepthCanvas" style="position:absolute;top:0;right:0;bottom:0;width:72px;z-index:7;pointer-events:none;opacity:0;transition:opacity .3s;"></canvas>
     </div>
 
     <!-- RIGHT INFO PANEL -->
@@ -2942,6 +2945,10 @@ async function anInitChart() {
 
   // Connect WS
   anConnectWS(anSym, anInterval);
+  // Sync depth if active in analysis panel
+  if (anDepthVisible && anSym) {
+    if (!depthWs || depthWs.readyState !== 1) depthConnect(anSym);
+  }
 }
 
 // ── WebSocket for analysis ───────────────────────────────────────────────
@@ -3401,6 +3408,52 @@ function anClearAll() {
 
 function anSnapshot() {
   toast('Screenshot: F12 → Cmd+Shift+P → "Capture node screenshot"');
+}
+
+// ── Depth toggle for analysis panel (reuses same depth engine)
+let anDepthVisible = false;
+let anDepthRAF     = null;
+let anDepthCtx_    = null;
+
+function anToggleDepth() {
+  anDepthVisible = !anDepthVisible;
+  const btn = document.getElementById('anDepthBtn');
+  const cv  = document.getElementById('anDepthCanvas');
+  if (btn) btn.classList.toggle('active', anDepthVisible);
+  if (cv)  cv.style.opacity = anDepthVisible ? '1' : '0';
+
+  if (anDepthVisible) {
+    // Size canvas
+    const wrap = document.getElementById('anChartWrap');
+    if (cv && wrap) { cv.width = 72; cv.height = wrap.clientHeight; }
+    anDepthCtx_ = cv?.getContext('2d');
+    // Connect WS if not already connected from main chart
+    if (anSym && !depthWs) depthConnect(anSym);
+    else if (anSym && depthWs?.readyState !== 1) depthConnect(anSym);
+    // Start draw loop using analysis canvas
+    if (anDepthRAF) cancelAnimationFrame(anDepthRAF);
+    function anDepthFrame() {
+      if (!anDepthVisible) return;
+      // Reuse depthDraw but override canvas reference
+      const savedCtx = depthCtx;
+      const savedCv  = depthCanvas_;
+      const savedVis = depthVisible;
+      depthCtx     = anDepthCtx_;
+      depthCanvas_ = cv;
+      depthVisible = true;
+      depthDraw();
+      depthCtx     = savedCtx;
+      depthCanvas_ = savedCv;
+      depthVisible = savedVis;
+      anDepthRAF = requestAnimationFrame(anDepthFrame);
+    }
+    anDepthRAF = requestAnimationFrame(anDepthFrame);
+  } else {
+    if (anDepthRAF) { cancelAnimationFrame(anDepthRAF); anDepthRAF = null; }
+    if (anDepthCtx_ && cv) anDepthCtx_.clearRect(0, 0, cv.width, cv.height);
+    // Only disconnect if main chart depth is also off
+    if (!depthVisible) depthDisconnect();
+  }
 }
 
 // ── Drawing list UI ───────────────────────────────────────────────────
