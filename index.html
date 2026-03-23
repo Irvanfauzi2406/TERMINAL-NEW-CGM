@@ -3942,41 +3942,88 @@ function depthConnect(sym) {
   const pair = BI_PAIRS[sym];
   if (!pair) return;
 
-  // First fetch snapshot
-  fetch(`https://api.binance.com/api/v3/depth?symbol=${pair}&limit=50`, { signal: makeSignal(6000) })
-    .then(r => r.json())
-    .then(d => {
-      depthBids = d.bids.map(([p,q]) => ({ price: parseFloat(p), qty: parseFloat(q) }));
-      depthAsks = d.asks.map(([p,q]) => ({ price: parseFloat(p), qty: parseFloat(q) }));
-      depthCalcMid();
-      depthStartDraw();
-    })
-    .catch(() => {});
+  const BINANCE_REST_ENDPOINTS = [
+    `https://api.binance.com/api/v3/depth?symbol=${pair}&limit=50`,
+    `https://api1.binance.com/api/v3/depth?symbol=${pair}&limit=50`,
+    `https://api2.binance.com/api/v3/depth?symbol=${pair}&limit=50`,
+  ];
+  const BINANCE_WS_ENDPOINTS = [
+    `wss://stream.binance.com:9443/ws/${pair.toLowerCase()}@depth20@100ms`,
+    `wss://stream.binance.com/ws/${pair.toLowerCase()}@depth20@100ms`,
+    `wss://data-stream.binance.vision/ws/${pair.toLowerCase()}@depth20@100ms`,
+  ];
 
-  // Then stream updates via diff WebSocket
-  try {
-    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${pair.toLowerCase()}@depth20@100ms`);
+  // Fetch snapshot — try each REST endpoint
+  async function tryFetchSnapshot() {
+    for (const url of BINANCE_REST_ENDPOINTS) {
+      try {
+        const r = await fetch(url, { signal: makeSignal(5000) });
+        if (!r.ok) continue;
+        const d = await r.json();
+        if (!d.bids || !d.asks) continue;
+        depthBids = d.bids.map(([p,q]) => ({ price:parseFloat(p), qty:parseFloat(q) })).filter(x=>x.qty>0);
+        depthAsks = d.asks.map(([p,q]) => ({ price:parseFloat(p), qty:parseFloat(q) })).filter(x=>x.qty>0);
+        depthBids.sort((a,b)=>b.price-a.price);
+        depthAsks.sort((a,b)=>a.price-b.price);
+        depthCalcMid();
+        depthStartDraw();
+        return true;
+      } catch(e) { continue; }
+    }
+    // All REST failed — start draw anyway with empty data (WS will fill it)
+    depthStartDraw();
+    return false;
+  }
+  tryFetchSnapshot();
+
+  // WS with multiple endpoint fallback
+  let wsIdx = 0;
+  function tryWS() {
+    if (wsIdx >= BINANCE_WS_ENDPOINTS.length) {
+      // All WS failed — retry from scratch after 5s
+      setTimeout(() => { if (depthVisible && lwCurrentSym===sym) { wsIdx=0; tryWS(); } }, 5000);
+      return;
+    }
+    const url = BINANCE_WS_ENDPOINTS[wsIdx++];
+    let ws;
+    try { ws = new WebSocket(url); } catch(e) { tryWS(); return; }
+
+    const openTimer = setTimeout(() => {
+      if (ws.readyState !== WebSocket.OPEN) { try{ws.close();}catch(e){} tryWS(); }
+    }, 4000);
+
     depthWs = ws;
+
+    ws.onopen = () => { clearTimeout(openTimer); };
 
     ws.onmessage = (e) => {
       try {
         const d = JSON.parse(e.data);
         if (!d.bids || !d.asks) return;
-        depthBids = d.bids.map(([p,q]) => ({ price: parseFloat(p), qty: parseFloat(q) })).filter(x => x.qty > 0);
-        depthAsks = d.asks.map(([p,q]) => ({ price: parseFloat(p), qty: parseFloat(q) })).filter(x => x.qty > 0);
-        // Sort: bids desc, asks asc
-        depthBids.sort((a,b) => b.price - a.price);
-        depthAsks.sort((a,b) => a.price - b.price);
+        depthBids = d.bids.map(([p,q])=>({price:parseFloat(p),qty:parseFloat(q)})).filter(x=>x.qty>0);
+        depthAsks = d.asks.map(([p,q])=>({price:parseFloat(p),qty:parseFloat(q)})).filter(x=>x.qty>0);
+        depthBids.sort((a,b)=>b.price-a.price);
+        depthAsks.sort((a,b)=>a.price-b.price);
         depthCalcMid();
       } catch(e2) {}
     };
 
-    ws.onclose = () => {
-      if (depthWs === ws && depthVisible && lwCurrentSym === sym) {
-        setTimeout(() => depthConnect(sym), 3000);
+    ws.onerror = () => { clearTimeout(openTimer); };
+
+    ws.onclose = (ev) => {
+      clearTimeout(openTimer);
+      if (depthWs !== ws) return; // already replaced
+      if (!depthVisible) return;
+      if (lwCurrentSym !== sym) return;
+      // Normal close (1000/1001) = reconnect same endpoint, error close = try next
+      if (ev.code === 1000 || ev.code === 1001) {
+        setTimeout(() => { wsIdx = Math.max(0, wsIdx-1); tryWS(); }, 2000);
+      } else {
+        tryWS();
       }
     };
-  } catch(e) {}
+  }
+  tryWS();
 }
 
 function depthDisconnect() {
