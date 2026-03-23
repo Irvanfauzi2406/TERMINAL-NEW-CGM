@@ -172,259 +172,375 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
 #mapTitle{position:absolute;top:5px;left:8px;font-size:9px;color:var(--orange);font-family:var(--mono);font-weight:600;letter-spacing:1px}
 
 /* ══════════════════════════════════════════════════════════════════
-   WELCOME SCREEN
+   WELCOME SCREEN  —  Modern Elegant Dark
    ══════════════════════════════════════════════════════════════════ */
 #welcomeScreen{
   position:fixed;inset:0;z-index:9999;
-  background:#000;
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
+  background:#050810;
+  display:flex;align-items:center;justify-content:center;
   overflow:hidden;
   font-family:'IBM Plex Mono',monospace;
-  transition:opacity .8s ease, transform .8s ease;
+  transition:opacity 1s cubic-bezier(.4,0,.2,1);
 }
-#welcomeScreen.fade-out{
-  opacity:0;
-  transform:scale(1.04);
-  pointer-events:none;
+#welcomeScreen.fade-out{ opacity:0; pointer-events:none; }
+#wStars{ position:absolute;inset:0;z-index:0; }
+
+/* ── Grid overlay */
+.wg-grid{
+  position:absolute;inset:0;z-index:1;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(74,158,255,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74,158,255,.035) 1px, transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
 }
 
-/* star canvas fills background */
-#starCanvas{
-  position:absolute;inset:0;width:100%;height:100%;
-  z-index:0;
+/* ── Radial glow center */
+.wg-glow{
+  position:absolute;z-index:1;pointer-events:none;
+  border-radius:50%;filter:blur(120px);
 }
+.wg-glow-1{ width:700px;height:700px;background:rgba(15,30,80,.9);top:50%;left:50%;transform:translate(-50%,-50%); }
+.wg-glow-2{ width:400px;height:400px;background:rgba(74,50,180,.18);top:30%;left:20%; }
+.wg-glow-3{ width:350px;height:350px;background:rgba(0,180,230,.12);bottom:20%;right:15%; }
+.wg-glow-4{ width:300px;height:300px;background:rgba(245,166,35,.08);top:20%;right:25%; }
 
-/* nebula glow layers */
-.nebula{
-  position:absolute;border-radius:50%;filter:blur(90px);
-  pointer-events:none;z-index:1;
+/* ── Horizontal scan line (single moving) */
+.wg-scan{
+  position:absolute;left:0;right:0;height:1px;z-index:2;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(74,158,255,.15),rgba(0,200,232,.25),rgba(74,158,255,.15),transparent);
+  animation:scanMove 5s linear infinite;
+  top:0;
 }
-.nebula-1{ width:600px;height:600px;background:rgba(74,50,200,.25);top:-80px;left:-100px; }
-.nebula-2{ width:500px;height:500px;background:rgba(0,180,255,.18);bottom:-60px;right:-80px; }
-.nebula-3{ width:350px;height:350px;background:rgba(245,166,35,.14);top:40%;left:55%; }
+@keyframes scanMove{ from{top:0} to{top:100%} }
 
-/* moon */
-.moon{
-  position:absolute;
-  width:200px;height:200px;
-  border-radius:50%;
-  background:radial-gradient(circle at 35% 35%, #f0e8d0, #c8b89a 40%, #a09070 70%, #706050);
-  box-shadow:0 0 60px rgba(240,232,200,.4), 0 0 120px rgba(200,180,140,.15);
-  top:8%;right:12%;
-  z-index:2;
-  animation:moonFloat 6s ease-in-out infinite;
-}
-.moon::before{
-  content:'';position:absolute;width:28px;height:28px;border-radius:50%;
-  background:rgba(100,90,70,.5);top:30px;left:40px;
-  box-shadow:18px 10px 0 rgba(90,80,60,.35), 40px 50px 0 8px rgba(80,72,55,.3),
-             70px 20px 0 6px rgba(95,85,65,.4), 55px 70px 0 4px rgba(85,77,58,.3);
-}
-@keyframes moonFloat{
-  0%,100%{transform:translateY(0) rotate(-3deg);}
-  50%{transform:translateY(-18px) rotate(3deg);}
-}
-
-/* astronaut */
-.astronaut{
-  position:absolute;
-  width:160px;
-  z-index:3;
-  top:12%;right:18%;
-  animation:astroFloat 5s ease-in-out infinite, astroSway 8s ease-in-out infinite;
-  transform-origin:center bottom;
-  filter:drop-shadow(0 0 20px rgba(74,158,255,.5));
-}
-@keyframes astroFloat{
-  0%,100%{transform:translateY(0) rotate(-5deg);}
-  50%{transform:translateY(-30px) rotate(5deg);}
-}
-@keyframes astroSway{
-  0%,100%{transform:translateX(0);}
-  50%{transform:translateX(12px);}
-}
-
-/* tether rope from astronaut to moon */
-.tether{
-  position:absolute;z-index:2;
-  top:18%;right:19.5%;
-  width:2px;height:130px;
-  background:linear-gradient(to bottom, rgba(255,255,255,.5), rgba(255,255,255,.1));
-  transform:rotate(30deg);
-  transform-origin:top center;
-  animation:tetherWave 4s ease-in-out infinite;
-}
-@keyframes tetherWave{
-  0%,100%{transform:rotate(30deg) scaleY(1);}
-  50%{transform:rotate(35deg) scaleY(1.04);}
-}
-
-/* content area */
-.wc-content{
+/* ── Layout: left planet zone + right content */
+.wg-layout{
   position:relative;z-index:5;
-  display:flex;flex-direction:column;
-  align-items:center;text-align:center;
-  max-width:780px;
-  padding:0 24px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  align-items:center;
+  width:min(1100px,94vw);
+  gap:0;
 }
 
-/* glowing diamond icon */
-.wc-icon{
-  font-size:56px;
-  margin-bottom:16px;
-  animation:iconPulse 3s ease-in-out infinite;
-  filter:drop-shadow(0 0 20px rgba(245,166,35,.8));
-}
-@keyframes iconPulse{
-  0%,100%{filter:drop-shadow(0 0 20px rgba(245,166,35,.8));}
-  50%{filter:drop-shadow(0 0 40px rgba(245,166,35,1)) drop-shadow(0 0 60px rgba(245,166,35,.5));}
+/* ══════════════════════
+   PLANET / ASTRONAUT ZONE
+   ══════════════════════ */
+.wg-scene{
+  position:relative;
+  height:520px;
+  display:flex;align-items:center;justify-content:center;
 }
 
-/* WELCOME text */
-.wc-welcome{
-  font-size:15px;letter-spacing:8px;color:rgba(245,166,35,.8);
-  font-weight:400;margin-bottom:8px;
-  animation:fadeSlideDown .8s ease both;
-  animation-delay:.2s;
+/* Planet */
+.wg-planet{
+  position:absolute;
+  width:320px;height:320px;
+  border-radius:50%;
+  background:
+    radial-gradient(circle at 32% 28%, #1e3a6e 0%, #0d1f44 35%, #060e2a 65%, #020812 100%);
+  box-shadow:
+    inset -40px -20px 60px rgba(0,0,0,.8),
+    inset 20px 15px 40px rgba(74,120,255,.12),
+    0 0 60px rgba(74,100,255,.15),
+    0 0 120px rgba(20,60,200,.08);
+  left:50%;top:50%;transform:translate(-50%,-50%);
+  overflow:hidden;
 }
-
-/* main title */
-.wc-title{
-  font-size:clamp(32px,5vw,58px);
-  font-weight:700;
-  letter-spacing:4px;
-  line-height:1.1;
-  color:#fff;
-  text-shadow:0 0 40px rgba(245,166,35,.6), 0 0 80px rgba(74,158,255,.3);
-  animation:fadeSlideDown .8s ease both;
-  animation-delay:.4s;
+/* Planet surface details */
+.wg-planet::before{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  background:
+    radial-gradient(circle at 70% 65%, rgba(0,0,0,.5) 0%, transparent 40%),
+    radial-gradient(circle at 25% 75%, rgba(30,60,120,.3) 0%, transparent 30%),
+    radial-gradient(circle at 80% 30%, rgba(40,80,160,.2) 0%, transparent 25%);
 }
-.wc-title .hl{ color:#f5a623; }
-
-/* tagline */
-.wc-tagline{
-  font-size:14px;letter-spacing:2px;
-  color:rgba(0,200,232,.9);
-  margin-top:12px;
-  animation:fadeSlideDown .8s ease both;
-  animation-delay:.6s;
-}
-
-/* stats row */
-.wc-stats{
-  display:flex;gap:32px;margin-top:32px;
-  animation:fadeSlideDown .8s ease both;
-  animation-delay:.8s;
-}
-.wc-stat{
-  display:flex;flex-direction:column;align-items:center;gap:4px;
-  padding:12px 20px;
-  border:1px solid rgba(245,166,35,.2);
-  border-radius:4px;
-  background:rgba(255,255,255,.03);
-  backdrop-filter:blur(4px);
-}
-.wc-stat-val{ font-size:22px;font-weight:700;color:#f5a623; }
-.wc-stat-lbl{ font-size:9px;letter-spacing:2px;color:rgba(200,212,232,.5); }
-
-/* enter button */
-.wc-btn{
-  margin-top:40px;
-  padding:14px 52px;
-  background:linear-gradient(135deg,#f5a623,#e8820a);
-  border:none;border-radius:3px;
-  color:#000;font-family:'IBM Plex Mono',monospace;
-  font-size:13px;font-weight:700;letter-spacing:3px;
-  cursor:pointer;
-  box-shadow:0 0 30px rgba(245,166,35,.5), 0 4px 20px rgba(0,0,0,.4);
-  transition:all .2s;
-  animation:fadeSlideDown .8s ease both, btnGlow 2s ease-in-out infinite;
-  animation-delay:1s, 1.8s;
-  position:relative;overflow:hidden;
-}
-.wc-btn::before{
-  content:'';position:absolute;inset:0;
-  background:linear-gradient(135deg,rgba(255,255,255,.2),transparent);
-  opacity:0;transition:opacity .2s;
-}
-.wc-btn:hover{ transform:translateY(-2px) scale(1.03); box-shadow:0 0 50px rgba(245,166,35,.8), 0 8px 30px rgba(0,0,0,.5); }
-.wc-btn:hover::before{ opacity:1; }
-.wc-btn:active{ transform:translateY(0) scale(.99); }
-@keyframes btnGlow{
-  0%,100%{box-shadow:0 0 30px rgba(245,166,35,.5),0 4px 20px rgba(0,0,0,.4);}
-  50%{box-shadow:0 0 60px rgba(245,166,35,.9),0 4px 30px rgba(0,0,0,.5);}
-}
-
-/* loading bar */
-.wc-loadbar{
-  width:300px;height:2px;background:rgba(255,255,255,.08);
-  border-radius:2px;margin-top:28px;overflow:hidden;
-  animation:fadeSlideDown .8s ease both;
-  animation-delay:1.2s;
-}
-.wc-loadfill{
-  height:100%;background:linear-gradient(to right,#f5a623,#00c8e8,#a855f7);
-  border-radius:2px;
-  animation:loadProgress 2s ease forwards;
-  animation-delay:1.4s;
-  width:0;
-}
-@keyframes loadProgress{ to{ width:100%; } }
-
-/* scan line effect */
-.wc-scanline{
-  position:absolute;inset:0;z-index:4;pointer-events:none;
-  background:repeating-linear-gradient(
-    to bottom,
-    transparent 0px, transparent 3px,
-    rgba(0,0,0,.05) 3px, rgba(0,0,0,.05) 4px
-  );
-}
-
-/* corner decorations */
-.wc-corner{
-  position:absolute;z-index:5;
-  width:50px;height:50px;
-  border-color:rgba(245,166,35,.4);
-  border-style:solid;
+/* Planet atmosphere glow */
+.wg-planet::after{
+  content:'';position:absolute;inset:-8px;border-radius:50%;
+  background:transparent;
+  box-shadow:0 0 30px 8px rgba(74,120,255,.12),0 0 60px 16px rgba(20,60,180,.07);
   pointer-events:none;
 }
-.wc-corner.tl{ top:24px;left:24px;border-width:2px 0 0 2px; }
-.wc-corner.tr{ top:24px;right:24px;border-width:2px 2px 0 0; }
-.wc-corner.bl{ bottom:24px;left:24px;border-width:0 0 2px 2px; }
-.wc-corner.br{ bottom:24px;right:24px;border-width:0 2px 2px 0; }
-
-/* streaming text */
-.wc-stream{
-  font-size:10px;letter-spacing:1px;color:rgba(0,200,232,.5);
-  margin-top:8px;height:14px;
-  animation:fadeSlideDown .8s ease both;
-  animation-delay:.9s;
+/* Planet rings */
+.wg-rings{
+  position:absolute;
+  left:50%;top:50%;
+  width:440px;height:80px;
+  border-radius:50%;
+  border:2px solid rgba(100,150,255,.18);
+  box-shadow:0 0 0 6px rgba(80,130,240,.07),0 0 0 14px rgba(60,110,220,.04);
+  transform:translate(-50%,-50%) rotateX(72deg);
+  pointer-events:none;
+}
+.wg-rings::after{
+  content:'';position:absolute;inset:12px;border-radius:50%;
+  border:1px solid rgba(120,170,255,.1);
 }
 
-/* shared fade-in */
-@keyframes fadeSlideDown{
-  from{ opacity:0;transform:translateY(-20px); }
-  to{ opacity:1;transform:translateY(0); }
+/* Planet city lights (dots) */
+.wg-lights{
+  position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  background:
+    radial-gradient(circle 2px at 35% 45%, rgba(255,220,100,.7) 0%, transparent 100%),
+    radial-gradient(circle 1.5px at 55% 60%, rgba(255,200,80,.5) 0%, transparent 100%),
+    radial-gradient(circle 2px at 65% 40%, rgba(200,220,255,.6) 0%, transparent 100%),
+    radial-gradient(circle 1px at 48% 55%, rgba(255,180,60,.4) 0%, transparent 100%),
+    radial-gradient(circle 1.5px at 28% 58%, rgba(180,210,255,.5) 0%, transparent 100%),
+    radial-gradient(circle 1px at 72% 52%, rgba(255,210,90,.4) 0%, transparent 100%),
+    radial-gradient(circle 2px at 42% 32%, rgba(200,230,255,.5) 0%, transparent 100%);
+  animation:cityPulse 4s ease-in-out infinite;
+}
+@keyframes cityPulse{
+  0%,100%{opacity:.7} 50%{opacity:1}
 }
 
-/* shooting stars */
-.shoot{
-  position:absolute;z-index:2;
-  width:2px;height:2px;
-  background:white;border-radius:50%;
-  animation:shoot var(--d,3s) ease-in var(--delay,0s) infinite;
-  opacity:0;
+/* Orbit path */
+.wg-orbit{
+  position:absolute;
+  width:420px;height:420px;
+  border-radius:50%;
+  border:1px solid rgba(74,158,255,.1);
+  left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  animation:orbitRotate 20s linear infinite;
 }
-@keyframes shoot{
-  0%{ opacity:0;transform:translate(0,0) rotate(var(--ang,30deg)); }
-  5%{ opacity:1; }
-  30%{ opacity:0;transform:translate(var(--tx,200px),var(--ty,200px)) rotate(var(--ang,30deg)); }
-  100%{ opacity:0; }
+@keyframes orbitRotate{ to{transform:translate(-50%,-50%) rotate(360deg)} }
+
+/* Orbit dot */
+.wg-orbit-dot{
+  position:absolute;
+  width:8px;height:8px;border-radius:50%;
+  background:#4a9eff;
+  box-shadow:0 0 12px rgba(74,158,255,.8);
+  top:-4px;left:50%;transform:translateX(-50%);
+}
+
+/* Astronaut */
+.wg-astro{
+  position:absolute;
+  z-index:10;
+  width:130px;
+  filter:drop-shadow(0 0 16px rgba(74,158,255,.35)) drop-shadow(0 8px 20px rgba(0,0,0,.6));
+  animation:astroOrbit 12s linear infinite;
+  transform-origin:-180px 0;
+  left:50%;top:50%;
+  margin-left:-65px;margin-top:-65px;
+}
+@keyframes astroOrbit{
+  from{transform:rotate(0deg) translateX(180px) rotate(0deg)}
+  to{transform:rotate(360deg) translateX(180px) rotate(-360deg)}
+}
+
+/* Small moon */
+.wg-moon{
+  position:absolute;
+  width:60px;height:60px;border-radius:50%;
+  background:radial-gradient(circle at 38% 35%, #d8cbb8, #a89880 45%, #857660 70%);
+  box-shadow:inset -8px -4px 12px rgba(0,0,0,.4),0 0 20px rgba(220,200,160,.2);
+  right:12%;top:15%;
+  animation:moonDrift 8s ease-in-out infinite;
+}
+.wg-moon::before{
+  content:'';position:absolute;
+  width:8px;height:8px;border-radius:50%;background:rgba(100,90,70,.4);
+  top:14px;left:18px;
+  box-shadow:10px 6px 0 rgba(80,70,55,.35),24px 16px 0 5px rgba(70,60,48,.3);
+}
+@keyframes moonDrift{
+  0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)}
+}
+
+/* ══════════════════════
+   CONTENT ZONE (right)
+   ══════════════════════ */
+.wg-content{
+  padding:0 0 0 48px;
+  display:flex;flex-direction:column;
+  align-items:flex-start;
+}
+
+/* Eyebrow */
+.wg-eyebrow{
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:20px;
+  animation:wcFadeUp .7s ease both .2s;
+}
+.wg-eyebrow-line{
+  width:32px;height:1px;background:linear-gradient(to right,#f5a623,transparent);
+}
+.wg-eyebrow-text{
+  font-size:10px;letter-spacing:4px;color:rgba(245,166,35,.7);
+  font-weight:400;text-transform:uppercase;
+}
+
+/* Main title */
+.wg-h1{
+  font-size:clamp(38px,4.5vw,60px);
+  font-weight:700;line-height:1;letter-spacing:-1px;
+  color:#fff;margin-bottom:4px;
+  animation:wcFadeUp .7s ease both .35s;
+}
+.wg-h1 .wg-accent{
+  color:transparent;
+  background:linear-gradient(135deg,#f5a623,#ff8c00,#ffb347);
+  -webkit-background-clip:text;background-clip:text;
+}
+.wg-h2{
+  font-size:clamp(38px,4.5vw,60px);
+  font-weight:700;line-height:1;letter-spacing:-1px;
+  color:rgba(255,255,255,.15);
+  margin-bottom:28px;
+  animation:wcFadeUp .7s ease both .4s;
+}
+
+/* Tag chips */
+.wg-tags{
+  display:flex;gap:8px;flex-wrap:wrap;
+  margin-bottom:28px;
+  animation:wcFadeUp .7s ease both .5s;
+}
+.wg-tag{
+  padding:4px 12px;border-radius:2px;
+  font-size:9px;letter-spacing:1.5px;font-weight:600;
+  border:1px solid;
+}
+.wg-tag-orange{ color:#f5a623;border-color:rgba(245,166,35,.3);background:rgba(245,166,35,.06); }
+.wg-tag-cyan{   color:#00c8e8;border-color:rgba(0,200,232,.3);background:rgba(0,200,232,.06); }
+.wg-tag-green{  color:#00d4a0;border-color:rgba(0,212,160,.3);background:rgba(0,212,160,.06); }
+
+/* Description */
+.wg-desc{
+  font-size:12px;line-height:1.8;color:rgba(160,180,220,.65);
+  font-family:'IBM Plex Sans',sans-serif;
+  max-width:360px;margin-bottom:36px;
+  animation:wcFadeUp .7s ease both .6s;
+}
+
+/* Stats */
+.wg-stats{
+  display:flex;gap:0;margin-bottom:40px;
+  animation:wcFadeUp .7s ease both .65s;
+  border:1px solid rgba(74,158,255,.12);
+  border-radius:4px;overflow:hidden;
+}
+.wg-stat{
+  padding:14px 24px;display:flex;flex-direction:column;gap:3px;
+  border-right:1px solid rgba(74,158,255,.1);
+}
+.wg-stat:last-child{ border-right:none; }
+.wg-stat-val{
+  font-size:20px;font-weight:700;color:#fff;
+  font-family:'IBM Plex Mono',monospace;
+}
+.wg-stat-val .wg-stat-dot{ color:#f5a623;font-size:8px;vertical-align:super; }
+.wg-stat-lbl{ font-size:8px;letter-spacing:2px;color:rgba(120,150,200,.5); }
+
+/* CTA button */
+.wg-cta{
+  position:relative;
+  display:inline-flex;align-items:center;gap:12px;
+  padding:15px 36px;
+  background:transparent;
+  border:1px solid rgba(245,166,35,.5);
+  border-radius:3px;
+  color:#f5a623;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;font-weight:700;letter-spacing:3px;
+  cursor:pointer;
+  overflow:hidden;
+  transition:all .25s;
+  animation:wcFadeUp .7s ease both .75s;
+}
+.wg-cta::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(245,166,35,.08),transparent);
+  transition:opacity .25s;
+}
+.wg-cta::after{
+  content:'';position:absolute;
+  top:0;left:-100%;width:100%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(245,166,35,.12),transparent);
+  transition:left .5s;
+}
+.wg-cta:hover{
+  border-color:rgba(245,166,35,.9);
+  color:#fff;
+  box-shadow:0 0 30px rgba(245,166,35,.2),inset 0 0 30px rgba(245,166,35,.04);
+}
+.wg-cta:hover::after{ left:100%; }
+.wg-cta:active{ transform:scale(.98); }
+.wg-cta-arrow{
+  font-size:14px;
+  transition:transform .2s;
+}
+.wg-cta:hover .wg-cta-arrow{ transform:translateX(4px); }
+
+/* Hint below CTA */
+.wg-hint{
+  margin-top:14px;font-size:9px;letter-spacing:1.5px;
+  color:rgba(100,130,180,.4);
+  animation:wcFadeUp .7s ease both .85s;
+}
+
+/* Progress bar */
+.wg-progress{
+  position:absolute;bottom:0;left:0;right:0;height:2px;z-index:10;
+  background:rgba(255,255,255,.04);
+}
+.wg-progress-fill{
+  height:100%;width:0;
+  background:linear-gradient(to right,#f5a623,#00c8e8,#a855f7);
+  animation:wgLoad 8s linear forwards;
+}
+@keyframes wgLoad{ to{width:100%} }
+
+/* Bottom status bar */
+.wg-statusbar{
+  position:absolute;bottom:0;left:0;right:0;
+  height:32px;z-index:6;
+  background:rgba(0,0,0,.3);backdrop-filter:blur(8px);
+  border-top:1px solid rgba(74,158,255,.08);
+  display:flex;align-items:center;padding:0 24px;gap:20px;
+}
+.wg-status-item{
+  display:flex;align-items:center;gap:6px;
+  font-size:9px;letter-spacing:1px;color:rgba(100,130,180,.5);
+}
+.wg-status-dot{
+  width:5px;height:5px;border-radius:50%;
+  animation:wcBlink 2s ease-in-out infinite;
+}
+.wg-status-dot.g{ background:#00d4a0; }
+.wg-status-dot.o{ background:#f5a623;animation-delay:.5s; }
+.wg-status-dot.b{ background:#4a9eff;animation-delay:1s; }
+@keyframes wcBlink{ 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.wg-stream-text{
+  margin-left:auto;font-size:9px;letter-spacing:1px;
+  color:rgba(0,200,232,.4);
+  font-family:'IBM Plex Mono',monospace;
+}
+
+/* corner accents */
+.wg-ca{
+  position:absolute;z-index:6;pointer-events:none;
+  width:20px;height:20px;
+  border-color:rgba(74,158,255,.2);border-style:solid;
+}
+.wg-ca.tl{top:20px;left:20px;border-width:1px 0 0 1px;}
+.wg-ca.tr{top:20px;right:20px;border-width:1px 1px 0 0;}
+.wg-ca.bl{bottom:40px;left:20px;border-width:0 0 1px 1px;}
+.wg-ca.br{bottom:40px;right:20px;border-width:0 1px 1px 0;}
+
+@keyframes wcFadeUp{
+  from{opacity:0;transform:translateY(16px)}
+  to{opacity:1;transform:translateY(0)}
 }
 
 /* ── ANALYSIS OVERLAY ──────────────────────────────────────────────── */
+
 #analysisOverlay{
   display:none;position:fixed;inset:0;z-index:200;
   background:var(--bg);flex-direction:column;
@@ -560,116 +676,209 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
 <body>
 
 <!-- ══════════════════════════════════════════════════════════════
-     WELCOME SCREEN
+     WELCOME SCREEN — Modern Elegant
      ══════════════════════════════════════════════════════════════ -->
 <div id="welcomeScreen">
 
-  <!-- Star field canvas -->
-  <canvas id="starCanvas"></canvas>
+  <!-- Star canvas -->
+  <canvas id="wStars"></canvas>
 
-  <!-- Nebula glows -->
-  <div class="nebula nebula-1"></div>
-  <div class="nebula nebula-2"></div>
-  <div class="nebula nebula-3"></div>
+  <!-- Background glows -->
+  <div class="wg-glow wg-glow-1"></div>
+  <div class="wg-glow wg-glow-2"></div>
+  <div class="wg-glow wg-glow-3"></div>
+  <div class="wg-glow wg-glow-4"></div>
 
-  <!-- Scan lines -->
-  <div class="wc-scanline"></div>
+  <!-- Grid -->
+  <div class="wg-grid"></div>
 
-  <!-- Corner brackets -->
-  <div class="wc-corner tl"></div>
-  <div class="wc-corner tr"></div>
-  <div class="wc-corner bl"></div>
-  <div class="wc-corner br"></div>
+  <!-- Scan line -->
+  <div class="wg-scan"></div>
 
-  <!-- Moon -->
-  <div class="moon"></div>
+  <!-- Corner accents -->
+  <div class="wg-ca tl"></div><div class="wg-ca tr"></div>
+  <div class="wg-ca bl"></div><div class="wg-ca br"></div>
 
-  <!-- Tether rope -->
-  <div class="tether"></div>
+  <!-- Main layout -->
+  <div class="wg-layout">
 
-  <!-- Astronaut SVG -->
-  <svg class="astronaut" viewBox="0 0 120 180" xmlns="http://www.w3.org/2000/svg">
-    <!-- Body / suit -->
-    <ellipse cx="60" cy="110" rx="34" ry="42" fill="#dde8f5" stroke="#b0c4de" stroke-width="1.5"/>
-    <!-- Chest panel -->
-    <rect x="44" y="96" width="32" height="22" rx="4" fill="#c0d0e8" stroke="#a0b4cc" stroke-width="1"/>
-    <rect x="48" y="100" width="8" height="6" rx="1" fill="#f5a623" opacity=".8"/>
-    <rect x="60" y="100" width="8" height="6" rx="1" fill="#00c8e8" opacity=".8"/>
-    <rect x="48" y="110" width="20" height="4" rx="1" fill="#4a9eff" opacity=".6"/>
-    <!-- Helmet -->
-    <ellipse cx="60" cy="68" rx="26" ry="28" fill="#c8d8ec" stroke="#a0b8d0" stroke-width="2"/>
-    <!-- Visor -->
-    <ellipse cx="60" cy="68" rx="18" ry="19" fill="#1a2a4a"/>
-    <ellipse cx="60" cy="68" rx="18" ry="19" fill="url(#visorGrad)" opacity=".7"/>
-    <!-- Visor reflection -->
-    <ellipse cx="52" cy="60" rx="5" ry="7" fill="rgba(255,255,255,.15)" transform="rotate(-15 52 60)"/>
-    <defs>
-      <radialGradient id="visorGrad" cx="40%" cy="35%">
-        <stop offset="0%" stop-color="#4a9eff" stop-opacity=".6"/>
-        <stop offset="100%" stop-color="#0a1a3a" stop-opacity=".9"/>
-      </radialGradient>
-    </defs>
-    <!-- Neck ring -->
-    <rect x="48" y="90" width="24" height="8" rx="3" fill="#b0c4de" stroke="#90a8c0" stroke-width="1"/>
-    <!-- Left arm -->
-    <path d="M26 100 Q10 110 14 130 Q18 145 28 138 Q30 120 34 112" fill="#dde8f5" stroke="#b0c4de" stroke-width="1.5"/>
-    <!-- Left glove -->
-    <ellipse cx="18" cy="135" rx="10" ry="8" fill="#c8d8ec" stroke="#a0b8d0" stroke-width="1"/>
-    <!-- Right arm — reaching up toward moon -->
-    <path d="M94 100 Q110 85 106 65 Q102 48 90 52 Q86 70 80 85" fill="#dde8f5" stroke="#b0c4de" stroke-width="1.5"/>
-    <!-- Right glove reaching -->
-    <ellipse cx="104" cy="58" rx="10" ry="8" fill="#c8d8ec" stroke="#a0b8d0" stroke-width="1" transform="rotate(-30 104 58)"/>
-    <!-- Left leg -->
-    <path d="M42 148 Q36 162 40 172 Q50 178 54 166 Q52 154 52 148" fill="#dde8f5" stroke="#b0c4de" stroke-width="1.5"/>
-    <!-- Right leg -->
-    <path d="M78 148 Q84 162 80 172 Q70 178 66 166 Q68 154 68 148" fill="#dde8f5" stroke="#b0c4de" stroke-width="1.5"/>
-    <!-- Boots -->
-    <ellipse cx="42" cy="174" rx="12" ry="6" fill="#8a9ab8"/>
-    <ellipse cx="78" cy="174" rx="12" ry="6" fill="#8a9ab8"/>
-    <!-- Jetpack -->
-    <rect x="20" y="105" width="12" height="24" rx="3" fill="#8a9ab8" stroke="#6a7a98" stroke-width="1"/>
-    <circle cx="26" cy="132" r="3" fill="#f5a623" opacity=".9"/>
-    <!-- Backpack nozzle glow -->
-    <ellipse cx="26" cy="133" rx="4" ry="2" fill="#f5a623" opacity=".4" filter="blur(2px)"/>
-    <!-- Stars on helmet -->
-    <circle cx="58" cy="58" r="1" fill="rgba(255,255,255,.4)"/>
-    <circle cx="66" cy="54" r="1.5" fill="rgba(255,255,255,.3)"/>
-    <circle cx="54" cy="65" r="1" fill="rgba(255,255,255,.3)"/>
-  </svg>
+    <!-- LEFT: Planet scene -->
+    <div class="wg-scene">
+      <div class="wg-rings"></div>
+      <div class="wg-planet"><div class="wg-lights"></div></div>
+      <div class="wg-orbit"><div class="wg-orbit-dot"></div></div>
+      <div class="wg-moon"></div>
 
-  <!-- Shooting stars -->
-  <div class="shoot" style="top:15%;left:20%;--d:4s;--delay:0.5s;--tx:180px;--ty:80px;--ang:25deg"></div>
-  <div class="shoot" style="top:25%;left:60%;--d:5s;--delay:1.5s;--tx:-200px;--ty:120px;--ang:-20deg"></div>
-  <div class="shoot" style="top:60%;left:10%;--d:3.5s;--delay:2.5s;--tx:220px;--ty:60px;--ang:15deg"></div>
-  <div class="shoot" style="top:10%;left:75%;--d:6s;--delay:0.8s;--tx:-150px;--ty:180px;--ang:-35deg"></div>
-  <div class="shoot" style="top:70%;left:85%;--d:4.5s;--delay:3s;--tx:-180px;--ty:-40px;--ang:-10deg"></div>
+      <!-- Astronaut SVG — detailed & realistic -->
+      <svg class="wg-astro" viewBox="0 0 100 150" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="suitGrad" cx="40%" cy="35%">
+            <stop offset="0%" stop-color="#e8f0fc"/>
+            <stop offset="60%" stop-color="#c8d8f0"/>
+            <stop offset="100%" stop-color="#a0b4d0"/>
+          </radialGradient>
+          <radialGradient id="visorGrad" cx="35%" cy="30%">
+            <stop offset="0%" stop-color="#3060c0" stop-opacity=".6"/>
+            <stop offset="50%" stop-color="#0a1840" stop-opacity=".95"/>
+            <stop offset="100%" stop-color="#040e28" stop-opacity="1"/>
+          </radialGradient>
+          <radialGradient id="helmetGrad" cx="38%" cy="32%">
+            <stop offset="0%" stop-color="#dce8f8"/>
+            <stop offset="100%" stop-color="#a8bcd4"/>
+          </radialGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <linearGradient id="thrusterGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#f5a623" stop-opacity=".9"/>
+            <stop offset="100%" stop-color="#ff6600" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
 
-  <!-- Main content -->
-  <div class="wc-content">
-    <div class="wc-icon">&#x25C6;</div>
-    <div class="wc-welcome">W E L C O M E &nbsp; T O</div>
-    <div class="wc-title">CRYPTO<span class="hl">GEM</span><br>TERMINAL</div>
-    <div class="wc-tagline">&#9679; REAL-TIME CRYPTO INTELLIGENCE &#9679;</div>
-    <div class="wc-stream" id="wcStream">Initializing data streams...</div>
-    <div class="wc-stats">
-      <div class="wc-stat">
-        <div class="wc-stat-val">500+</div>
-        <div class="wc-stat-lbl">LIVE ASSETS</div>
-      </div>
-      <div class="wc-stat">
-        <div class="wc-stat-val">24/7</div>
-        <div class="wc-stat-lbl">MONITORING</div>
-      </div>
-      <div class="wc-stat">
-        <div class="wc-stat-val">Real-Time</div>
-        <div class="wc-stat-lbl">BINANCE WS</div>
-      </div>
+        <!-- === LEGS === -->
+        <!-- Left leg -->
+        <rect x="36" y="100" width="14" height="24" rx="5" fill="url(#suitGrad)" stroke="#90a8c8" stroke-width=".8"/>
+        <!-- Right leg -->
+        <rect x="52" y="100" width="14" height="24" rx="5" fill="url(#suitGrad)" stroke="#90a8c8" stroke-width=".8"/>
+        <!-- Left boot -->
+        <ellipse cx="43" cy="126" rx="9" ry="5" fill="#5a7090"/>
+        <rect x="34" y="122" width="18" height="6" rx="3" fill="#6a8098" stroke="#4a6070" stroke-width=".5"/>
+        <!-- Right boot -->
+        <ellipse cx="59" cy="126" rx="9" ry="5" fill="#5a7090"/>
+        <rect x="50" y="122" width="18" height="6" rx="3" fill="#6a8098" stroke="#4a6070" stroke-width=".5"/>
+
+        <!-- === BODY === -->
+        <rect x="30" y="62" width="42" height="44" rx="10" fill="url(#suitGrad)" stroke="#90a8c8" stroke-width="1"/>
+        <!-- Chest panel -->
+        <rect x="37" y="70" width="28" height="20" rx="4" fill="#b0c8e8" stroke="#90a8c8" stroke-width=".8"/>
+        <!-- Display lights -->
+        <rect x="40" y="73" width="7" height="5" rx="1.5" fill="#f5a623" opacity=".9" filter="url(#glow)"/>
+        <rect x="50" y="73" width="7" height="5" rx="1.5" fill="#00d4a0" opacity=".9" filter="url(#glow)"/>
+        <rect x="40" y="81" width="17" height="3" rx="1" fill="#4a9eff" opacity=".7"/>
+        <rect x="40" y="86" width="12" height="3" rx="1" fill="#4a9eff" opacity=".4"/>
+        <!-- Suit seam lines -->
+        <line x1="51" y1="62" x2="51" y2="106" stroke="#90a8c8" stroke-width=".5" stroke-dasharray="2,3" opacity=".5"/>
+
+        <!-- === BACKPACK === -->
+        <rect x="21" y="68" width="11" height="30" rx="4" fill="#8090a8" stroke="#6a7888" stroke-width=".8"/>
+        <!-- Thruster nozzle -->
+        <ellipse cx="26.5" cy="100" rx="4" ry="2.5" fill="#505868"/>
+        <!-- Thruster flame -->
+        <ellipse cx="26.5" cy="104" rx="3" ry="5" fill="url(#thrusterGrad)" opacity=".7" filter="url(#glow)"/>
+        <ellipse cx="26.5" cy="106" rx="1.5" ry="3" fill="#fff" opacity=".5" filter="url(#glow)"/>
+
+        <!-- === LEFT ARM (down/relaxed) === -->
+        <path d="M30 68 Q18 72 16 88 Q15 98 22 100" fill="none" stroke="#c8d8f0" stroke-width="11" stroke-linecap="round"/>
+        <path d="M30 68 Q18 72 16 88 Q15 98 22 100" fill="none" stroke="#90a8c8" stroke-width=".8"/>
+        <!-- Left glove -->
+        <ellipse cx="21" cy="102" rx="8" ry="6" fill="#8090a8" stroke="#6a7888" stroke-width=".8"/>
+        <line x1="16" y1="102" x2="26" y2="102" stroke="#6a7888" stroke-width=".5"/>
+
+        <!-- === RIGHT ARM (reaching up toward moon/sky) === -->
+        <path d="M72 68 Q84 60 88 42 Q90 28 82 22" fill="none" stroke="#c8d8f0" stroke-width="11" stroke-linecap="round"/>
+        <path d="M72 68 Q84 60 88 42 Q90 28 82 22" fill="none" stroke="#90a8c8" stroke-width=".8"/>
+        <!-- Right glove (open, reaching) -->
+        <ellipse cx="82" cy="20" rx="8" ry="6" fill="#8090a8" stroke="#6a7888" stroke-width=".8" transform="rotate(-40 82 20)"/>
+        <!-- Finger lines on glove -->
+        <line x1="79" y1="15" x2="80" y2="24" stroke="#6a7888" stroke-width=".6" transform="rotate(-40 82 20)" opacity=".6"/>
+        <line x1="82" y1="14" x2="83" y2="24" stroke="#6a7888" stroke-width=".6" transform="rotate(-40 82 20)" opacity=".6"/>
+
+        <!-- === NECK RING === -->
+        <rect x="38" y="55" width="26" height="10" rx="4" fill="#9ab0cc" stroke="#7a90ac" stroke-width=".8"/>
+
+        <!-- === HELMET === -->
+        <ellipse cx="51" cy="40" rx="24" ry="26" fill="url(#helmetGrad)" stroke="#a0b8d0" stroke-width="1.5"/>
+        <!-- Helmet brim -->
+        <rect x="30" y="55" width="42" height="7" rx="3" fill="#b0c4dc" stroke="#90a8c8" stroke-width=".8"/>
+        <!-- Visor -->
+        <ellipse cx="51" cy="39" rx="17" ry="18" fill="url(#visorGrad)"/>
+        <!-- Visor frame -->
+        <ellipse cx="51" cy="39" rx="17" ry="18" fill="none" stroke="#7090b0" stroke-width="1.5"/>
+        <!-- Visor shine top-left -->
+        <ellipse cx="43" cy="31" rx="4" ry="6" fill="rgba(255,255,255,.12)" transform="rotate(-20 43 31)"/>
+        <!-- Tiny reflection dot -->
+        <circle cx="40" cy="28" r="1.5" fill="rgba(255,255,255,.2)"/>
+        <!-- Reflection of planet in visor -->
+        <circle cx="58" cy="44" r="5" fill="rgba(30,80,200,.25)"/>
+        <!-- Helmet antenna -->
+        <line x1="65" y1="20" x2="70" y2="10" stroke="#9ab0cc" stroke-width="1.2" stroke-linecap="round"/>
+        <circle cx="70" cy="9" r="2" fill="#f5a623" filter="url(#glow)" opacity=".9"/>
+        <!-- Helmet top reflections -->
+        <ellipse cx="51" cy="18" rx="8" ry="4" fill="rgba(255,255,255,.08)" transform="rotate(-5 51 18)"/>
+
+        <!-- Tether cable from wrist toward planet -->
+        <path d="M26 98 Q 20 112 15 130 Q 10 148 8 148" stroke="rgba(255,255,255,.3)" stroke-width="1" fill="none" stroke-dasharray="3,2"/>
+      </svg>
     </div>
-    <button class="wc-btn" onclick="enterTerminal()">
-      &#9658;&nbsp; ENTER TERMINAL
-    </button>
-    <div class="wc-loadbar"><div class="wc-loadfill"></div></div>
+
+    <!-- RIGHT: Content -->
+    <div class="wg-content">
+      <div class="wg-eyebrow">
+        <div class="wg-eyebrow-line"></div>
+        <span class="wg-eyebrow-text">Welcome to</span>
+      </div>
+
+      <div class="wg-h1">CRYPTO<span class="wg-accent">GEM</span></div>
+      <div class="wg-h2">TERMINAL</div>
+
+      <div class="wg-tags">
+        <span class="wg-tag wg-tag-orange">REAL-TIME</span>
+        <span class="wg-tag wg-tag-cyan">BINANCE WS</span>
+        <span class="wg-tag wg-tag-green">INTELLIGENCE</span>
+      </div>
+
+      <div class="wg-desc">
+        Platform analisis crypto profesional dengan data live Binance, drawing tools TradingView-style, indikator teknikal, dan whale tracker real-time.
+      </div>
+
+      <div class="wg-stats">
+        <div class="wg-stat">
+          <div class="wg-stat-val">500<span class="wg-stat-dot">+</span></div>
+          <div class="wg-stat-lbl">ASSETS</div>
+        </div>
+        <div class="wg-stat">
+          <div class="wg-stat-val">24/7</div>
+          <div class="wg-stat-lbl">LIVE</div>
+        </div>
+        <div class="wg-stat">
+          <div class="wg-stat-val">&lt;1s</div>
+          <div class="wg-stat-lbl">LATENCY</div>
+        </div>
+        <div class="wg-stat">
+          <div class="wg-stat-val">17</div>
+          <div class="wg-stat-lbl">TOOLS</div>
+        </div>
+      </div>
+
+      <button class="wg-cta" onclick="enterTerminal()">
+        ENTER TERMINAL
+        <span class="wg-cta-arrow">&#8594;</span>
+      </button>
+      <div class="wg-hint" id="wcHint">PRESS SPACE OR ENTER TO CONTINUE</div>
+    </div>
+
+  </div><!-- /wg-layout -->
+
+  <!-- Bottom status bar -->
+  <div class="wg-statusbar">
+    <div class="wg-status-item">
+      <div class="wg-status-dot g"></div>
+      <span>Binance Connected</span>
+    </div>
+    <div class="wg-status-item">
+      <div class="wg-status-dot o"></div>
+      <span>Market Data Live</span>
+    </div>
+    <div class="wg-status-item">
+      <div class="wg-status-dot b"></div>
+      <span>WebSocket Ready</span>
+    </div>
+    <div class="wg-stream-text" id="wcStream">Initializing...</div>
   </div>
+
+  <!-- Progress bar at very bottom -->
+  <div class="wg-progress"><div class="wg-progress-fill"></div></div>
 
 </div>
 <!-- /welcomeScreen -->
@@ -3439,141 +3648,147 @@ window.addEventListener('resize', () => {
 
 
 // ═══════════════════════════════════════════════════════════════════
-// WELCOME SCREEN ENGINE
+// WELCOME SCREEN ENGINE — Modern
 // ═══════════════════════════════════════════════════════════════════
-(function() {
-  // ── Star field
+(function () {
+  // ── Deep space star field
   function initStars() {
-    const cv = document.getElementById('starCanvas');
+    const cv = document.getElementById('wStars');
     if (!cv) return;
     const W = cv.width  = window.innerWidth;
     const H = cv.height = window.innerHeight;
     const ctx = cv.getContext('2d');
 
-    // Generate stars
-    const stars = Array.from({ length: 280 }, () => ({
+    // Stars with varying sizes and twinkle
+    const stars = Array.from({ length: 320 }, () => ({
       x: Math.random() * W,
       y: Math.random() * H,
-      r: Math.random() * 1.6 + 0.2,
-      a: Math.random(),
-      da: (Math.random() - 0.5) * 0.008,
-      speed: Math.random() * 0.15 + 0.02,
+      r: Math.random() * 1.4 + 0.1,
+      alpha: Math.random() * 0.7 + 0.1,
+      da: (Math.random() - 0.5) * 0.012,
+      color: Math.random() > 0.85 ? '#b8d0ff' : Math.random() > 0.7 ? '#ffd8a0' : '#ffffff',
     }));
 
-    // Distant galaxies
-    const galaxies = Array.from({ length: 6 }, () => ({
+    // A few larger bright stars
+    const brightStars = Array.from({ length: 12 }, () => ({
       x: Math.random() * W,
       y: Math.random() * H,
-      r: Math.random() * 40 + 20,
-      color: ['rgba(74,50,200,.12)','rgba(0,180,255,.1)','rgba(168,85,247,.1)'][Math.floor(Math.random()*3)],
+      r: Math.random() * 1.2 + 0.8,
+      alpha: 0.9,
+      da: (Math.random() - 0.5) * 0.006,
     }));
 
     function draw() {
       ctx.clearRect(0, 0, W, H);
-      // Background gradient
-      const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H));
-      bg.addColorStop(0, '#06091a');
-      bg.addColorStop(1, '#000005');
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
 
-      // Galaxies
-      galaxies.forEach(g => {
-        const grd = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r);
-        grd.addColorStop(0, g.color);
-        grd.addColorStop(1, 'transparent');
-        ctx.fillStyle = grd;
-        ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI*2); ctx.fill();
-      });
+      // Void background
+      ctx.fillStyle = '#050810';
+      ctx.fillRect(0, 0, W, H);
 
-      // Stars
+      // Subtle deep space fog
+      const fog = ctx.createRadialGradient(W * .6, H * .3, 0, W * .6, H * .3, W * .55);
+      fog.addColorStop(0, 'rgba(20,30,80,.06)');
+      fog.addColorStop(1, 'transparent');
+      ctx.fillStyle = fog; ctx.fillRect(0, 0, W, H);
+
+      const fog2 = ctx.createRadialGradient(W * .2, H * .7, 0, W * .2, H * .7, W * .4);
+      fog2.addColorStop(0, 'rgba(10,40,60,.06)');
+      fog2.addColorStop(1, 'transparent');
+      ctx.fillStyle = fog2; ctx.fillRect(0, 0, W, H);
+
+      // Regular stars
       stars.forEach(s => {
-        s.a += s.da;
-        if (s.a > 1 || s.a < 0.1) s.da *= -1;
-        s.y -= s.speed;
-        if (s.y < -2) { s.y = H + 2; s.x = Math.random() * W; }
-        ctx.globalAlpha = Math.max(0.1, s.a);
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
+        s.alpha += s.da;
+        if (s.alpha > 0.85 || s.alpha < 0.05) s.da *= -1;
+        ctx.globalAlpha = Math.max(0.05, s.alpha);
+        ctx.fillStyle = s.color;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
       });
+
+      // Bright stars with soft glow
+      brightStars.forEach(s => {
+        s.alpha += s.da;
+        if (s.alpha > 1 || s.alpha < 0.4) s.da *= -1;
+        // Glow halo
+        const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 5);
+        g.addColorStop(0, `rgba(200,220,255,${s.alpha * 0.3})`);
+        g.addColorStop(1, 'transparent');
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 5, 0, Math.PI * 2); ctx.fill();
+        // Core
+        ctx.globalAlpha = s.alpha;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+      });
+
       ctx.globalAlpha = 1;
-
-      // Milky way band
-      const mw = ctx.createLinearGradient(0, H*.3, W, H*.7);
-      mw.addColorStop(0, 'transparent');
-      mw.addColorStop(.4, 'rgba(100,120,200,.04)');
-      mw.addColorStop(.6, 'rgba(120,140,220,.06)');
-      mw.addColorStop(1, 'transparent');
-      ctx.fillStyle = mw; ctx.fillRect(0, 0, W, H);
-
       requestAnimationFrame(draw);
     }
     draw();
   }
 
-  // ── Streaming text effect
+  // ── Streaming status text
   const phrases = [
     'Initializing data streams...',
-    'Connecting to Binance WebSocket...',
+    'Connecting Binance WebSocket...',
     'Loading market intelligence...',
-    'Fetching crypto prices...',
     'Calibrating chart engines...',
-    'Ready for launch...',
+    'Syncing whale tracker...',
+    'System ready.',
   ];
   let pIdx = 0;
   function cycleStream() {
     const el = document.getElementById('wcStream');
     if (!el) return;
-    el.style.opacity = 0;
+    el.style.opacity = '0';
+    el.style.transition = 'opacity .4s';
     setTimeout(() => {
       el.textContent = phrases[pIdx % phrases.length];
-      el.style.transition = 'opacity .5s';
-      el.style.opacity = 1;
+      el.style.opacity = '1';
       pIdx++;
-    }, 300);
+    }, 400);
   }
 
   // ── Enter terminal
-  window.enterTerminal = function() {
+  window.enterTerminal = function () {
     const ws = document.getElementById('welcomeScreen');
     if (!ws) return;
     ws.classList.add('fade-out');
     setTimeout(() => {
       ws.style.display = 'none';
-      // Trigger init if not already running
       if (!window._terminalInited) {
         window._terminalInited = true;
         init().catch(console.error);
       }
-    }, 800);
+    }, 1000);
   };
 
   // ── Auto-enter after 8 seconds
   let autoTimer = setTimeout(() => window.enterTerminal(), 8000);
 
-  // ── Allow Spacebar / Enter to skip
+  // ── Keyboard shortcut
   document.addEventListener('keydown', function onKey(e) {
-    if (['Enter','Space',' '].includes(e.key) || e.code === 'Space') {
+    if (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') {
       clearTimeout(autoTimer);
       window.enterTerminal();
       document.removeEventListener('keydown', onKey);
     }
   });
 
-  // ── Boot when DOM is ready
+  // ── Boot
+  function boot() {
+    initStars();
+    setInterval(cycleStream, 2200);
+    cycleStream();
+  }
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
   } else {
     boot();
-  }
-
-  function boot() {
-    initStars();
-    setInterval(cycleStream, 1800);
-    // Hint text after 3s
-    setTimeout(() => {
-      const btn = document.querySelector('.wc-btn');
-      if (btn) btn.textContent = '\u25BA  ENTER TERMINAL  (SPACE)';
-    }, 3000);
   }
 })();
 
