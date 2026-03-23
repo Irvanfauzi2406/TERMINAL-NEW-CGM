@@ -735,7 +735,9 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
         <span class="cchg" id="cchg">—</span>
       </div>
       <div class="cmeta" id="cmeta">Click any symbol to load chart</div>
-      <button onclick="openAnalysis()" style="margin-left:12px;padding:4px 14px;background:rgba(245,166,35,.12);border:1px solid var(--orange);color:var(--orange);font-family:var(--mono);font-size:10px;font-weight:600;cursor:pointer;border-radius:2px;letter-spacing:1px;flex-shrink:0;transition:all .2s" onmouseover="this.style.background='rgba(245,166,35,.25)'" onmouseout="this.style.background='rgba(245,166,35,.12)'">
+      <!-- DEPTH button in header — always visible -->
+      <button class="depth-btn" id="depthBtn" onclick="toggleDepth()" title="Order Book Depth" style="margin-left:10px;flex-shrink:0">&#9647; DEPTH</button>
+      <button onclick="openAnalysis()" style="margin-left:8px;padding:4px 14px;background:rgba(245,166,35,.12);border:1px solid var(--orange);color:var(--orange);font-family:var(--mono);font-size:10px;font-weight:600;cursor:pointer;border-radius:2px;letter-spacing:1px;flex-shrink:0;transition:all .2s" onmouseover="this.style.background='rgba(245,166,35,.25)'" onmouseout="this.style.background='rgba(245,166,35,.12)'">
         📊 ANALISA
       </button>
     </div>
@@ -750,26 +752,21 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
       <button class="tf-btn" onclick="setTF(this,'3month','1day')">1D</button>
       <button class="tf-btn" onclick="setTF(this,'1year','1week')">1W</button>
       <div class="tf-sep"></div>
-      <span style="color:var(--text3);font-size:9px;flex-shrink:0">TYPE:</span>
-      <button class="tf-btn active" id="typeCandle" onclick="setChartType('candlestick',this)">🕯 Candle</button>
-      <button class="tf-btn" id="typeLine" onclick="setChartType('line',this)">📈 Line</button>
-      <button class="tf-btn" id="typeBar" onclick="setChartType('bar',this)">▌Bar</button>
+      <button class="tf-btn active" id="typeCandle" onclick="setChartType('candlestick',this)">🕯</button>
+      <button class="tf-btn" id="typeLine" onclick="setChartType('line',this)">📈</button>
+      <button class="tf-btn" id="typeBar" onclick="setChartType('bar',this)">▌</button>
       <div class="tf-sep"></div>
-      <span style="color:var(--text3);font-size:9px;flex-shrink:0">IND:</span>
       <button class="ind-btn" id="indMA" onclick="toggleIndicator('MA')">MA</button>
       <button class="ind-btn" id="indEMA" onclick="toggleIndicator('EMA')">EMA</button>
       <button class="ind-btn" id="indBB" onclick="toggleIndicator('BB')">BB</button>
       <button class="ind-btn" id="indVOL" onclick="toggleIndicator('VOL')">VOL</button>
       <button class="ind-btn" id="indRSI" onclick="toggleIndicator('RSI')">RSI</button>
       <div class="tf-sep"></div>
-      <span style="color:var(--text3);font-size:9px;flex-shrink:0">DRAW:</span>
-      <button class="draw-btn" id="drawHL" onclick="toggleDraw('hline')" title="Horizontal Line">— HL</button>
+      <button class="draw-btn" id="drawHL" onclick="toggleDraw('hline')" title="H-Line">— HL</button>
       <button class="draw-btn" id="drawTL" onclick="toggleDraw('tline')" title="Trendline">↗ TL</button>
-      <button class="draw-btn" id="drawFIB" onclick="toggleDraw('fib')" title="Fibonacci">🌀 FIB</button>
-      <button class="draw-btn" onclick="clearDrawings()" title="Clear all drawings" style="color:var(--red)">✕ CLR</button>
-      <div class="tf-sep"></div>
-      <button class="depth-btn" id="depthBtn" onclick="toggleDepth()" title="Order Book Depth">&#9647; DEPTH</button>
-      <span style="margin-left:auto;font-size:9px;flex-shrink:0" id="chartSrc" class="nt">Twelve Data</span>
+      <button class="draw-btn" id="drawFIB" onclick="toggleDraw('fib')" title="Fibonacci">φ FIB</button>
+      <button class="draw-btn" onclick="clearDrawings()" style="color:var(--red)">✕</button>
+      <span style="margin-left:auto;font-size:9px;flex-shrink:0" id="chartSrc" class="nt">Binance</span>
     </div>
     <div class="chart-area" id="chartArea">
       <div id="ohlcvBar" class="ohlcv-bar" style="display:none"></div>
@@ -4081,27 +4078,32 @@ function depthDraw() {
   // Use current LW chart price scale to map price → Y
   const idr = isIDR(lwCurrentSym || '');
 
-  // Get visible price range from LW chart
+  // Get visible price range — use actual LW series price scale
   let priceMin, priceMax;
   try {
-    const visible = lwc?.timeScale().getVisibleRange();
-    // Use bids/asks range as fallback
-    const allPrices = [...depthBids, ...depthAsks].map(x => x.price);
-    priceMin = Math.min(...allPrices) * 0.998;
-    priceMax = Math.max(...allPrices) * 1.002;
+    // Get price range from candle data in view
+    const sym = lwCurrentSym || anSym;
+    const q   = qCache[sym];
+    const mid = depthMid || q?.c || 68000;
+    // Use ±1.5% around mid as display range — matches typical chart view
+    const spread = mid * 0.015;
+    priceMin = mid - spread;
+    priceMax = mid + spread;
 
-    // Try to get from LW price scale
-    if (lwSeries) {
-      const logRange = lwc?.timeScale().getVisibleLogicalRange();
-      // Use mid price ±2% as display range
-      if (depthMid) {
-        priceMin = depthMid * 0.988;
-        priceMax = depthMid * 1.012;
+    // Refine using actual bids/asks range if available
+    if (depthBids.length && depthAsks.length) {
+      const topBid = depthBids[0]?.price;
+      const botBid = depthBids[Math.min(depthBids.length-1, DEPTH_LEVELS-1)]?.price;
+      const topAsk = depthAsks[Math.min(depthAsks.length-1, DEPTH_LEVELS-1)]?.price;
+      const botAsk = depthAsks[0]?.price;
+      if (botBid && topAsk) {
+        priceMin = botBid * 0.9995;
+        priceMax = topAsk * 1.0005;
       }
     }
   } catch(e) {
-    if (depthMid) { priceMin = depthMid * 0.988; priceMax = depthMid * 1.012; }
-    else { priceMin = 60000; priceMax = 76000; }
+    priceMin = (depthMid || 68000) * 0.985;
+    priceMax = (depthMid || 68000) * 1.015;
   }
 
   const priceRange = priceMax - priceMin || 1;
