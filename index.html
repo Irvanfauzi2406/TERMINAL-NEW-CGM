@@ -91,6 +91,21 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
 .draw-btn.active{background:rgba(168,85,247,.12);border-color:var(--purple);color:var(--purple)}
 .chart-area{flex:1;position:relative;min-height:0;background:var(--bg)}
 #lwChart{width:100%;height:100%}
+
+/* ── ORDER BOOK DEPTH OVERLAY */
+#depthCanvas{
+  position:absolute;
+  top:0;right:0;bottom:0;
+  width:72px;
+  z-index:8;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .3s;
+}
+#depthCanvas.visible{ opacity:1; }
+.depth-btn{ padding:2px 7px;font-size:9px;font-family:var(--mono);background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;transition:all .15s;border-radius:1px;white-space:nowrap; }
+.depth-btn:hover{ border-color:#00d4a0;color:#00d4a0; }
+.depth-btn.active{ background:rgba(0,212,160,.12);border-color:#00d4a0;color:#00d4a0; }
 /* OHLCV bar at top of chart */
 .ohlcv-bar{position:absolute;top:4px;left:8px;z-index:10;font-size:9px;font-family:var(--mono);color:var(--text3);display:flex;gap:10px;pointer-events:none;background:rgba(10,12,15,.7);padding:2px 8px;border-radius:2px}
 .ohlcv-bar span b{font-weight:500}
@@ -752,11 +767,14 @@ html,body{height:100%;min-height:100dvh;background:var(--bg);color:var(--text);f
       <button class="draw-btn" id="drawTL" onclick="toggleDraw('tline')" title="Trendline">↗ TL</button>
       <button class="draw-btn" id="drawFIB" onclick="toggleDraw('fib')" title="Fibonacci">🌀 FIB</button>
       <button class="draw-btn" onclick="clearDrawings()" title="Clear all drawings" style="color:var(--red)">✕ CLR</button>
+      <div class="tf-sep"></div>
+      <button class="depth-btn" id="depthBtn" onclick="toggleDepth()" title="Order Book Depth">&#9647; DEPTH</button>
       <span style="margin-left:auto;font-size:9px;flex-shrink:0" id="chartSrc" class="nt">Twelve Data</span>
     </div>
     <div class="chart-area" id="chartArea">
       <div id="ohlcvBar" class="ohlcv-bar" style="display:none"></div>
       <div id="lwChart"></div>
+      <canvas id="depthCanvas"></canvas>
     </div>
   </div>
   <div class="panel">
@@ -3853,7 +3871,329 @@ window.addEventListener('resize', () => {
 
 })();
 
-// ─── START ────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// ORDER BOOK DEPTH ENGINE — Real-time Binance WebSocket
+// ═══════════════════════════════════════════════════════════════════
+let depthVisible  = false;
+let depthWs       = null;
+let depthRAF      = null;
+let depthCtx      = null;
+let depthCanvas_  = null;
+let depthBids     = [];   // [{price, qty, cumQty}]
+let depthAsks     = [];   // [{price, qty, cumQty}]
+let depthMid      = 0;
+const DEPTH_LEVELS = 30;  // levels shown each side
+const DEPTH_W      = 72;  // canvas width px
+
+// ── Toggle show/hide
+function toggleDepth() {
+  depthVisible = !depthVisible;
+  const btn = document.getElementById('depthBtn');
+  const cv  = document.getElementById('depthCanvas');
+  if (btn) btn.classList.toggle('active', depthVisible);
+  if (cv)  cv.classList.toggle('visible', depthVisible);
+
+  if (depthVisible) {
+    depthInitCanvas();
+    if (lwCurrentSym) depthConnect(lwCurrentSym);
+  } else {
+    depthDisconnect();
+    if (depthRAF) { cancelAnimationFrame(depthRAF); depthRAF = null; }
+    if (depthCtx && depthCanvas_) {
+      depthCtx.clearRect(0, 0, depthCanvas_.width, depthCanvas_.height);
+    }
+    // Restore LW chart right margin
+    if (lwc) lwc.applyOptions({ rightPriceScale: { scaleMargins: { top:0.05, bottom:0.04 } } });
+  }
+}
+
+// ── Init canvas size
+function depthInitCanvas() {
+  depthCanvas_ = document.getElementById('depthCanvas');
+  const area   = document.getElementById('chartArea');
+  if (!depthCanvas_ || !area) return;
+  depthCanvas_.width  = DEPTH_W;
+  depthCanvas_.height = area.clientHeight;
+  depthCtx = depthCanvas_.getContext('2d');
+}
+
+// ── Connect Binance depth WebSocket
+function depthConnect(sym) {
+  depthDisconnect();
+  const pair = BI_PAIRS[sym];
+  if (!pair) return;
+
+  // First fetch snapshot
+  fetch(`https://api.binance.com/api/v3/depth?symbol=${pair}&limit=50`, { signal: makeSignal(6000) })
+    .then(r => r.json())
+    .then(d => {
+      depthBids = d.bids.map(([p,q]) => ({ price: parseFloat(p), qty: parseFloat(q) }));
+      depthAsks = d.asks.map(([p,q]) => ({ price: parseFloat(p), qty: parseFloat(q) }));
+      depthCalcMid();
+      depthStartDraw();
+    })
+    .catch(() => {});
+
+  // Then stream updates via diff WebSocket
+  try {
+    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${pair.toLowerCase()}@depth20@100ms`);
+    depthWs = ws;
+
+    ws.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        if (!d.bids || !d.asks) return;
+        depthBids = d.bids.map(([p,q]) => ({ price: parseFloat(p), qty: parseFloat(q) })).filter(x => x.qty > 0);
+        depthAsks = d.asks.map(([p,q]) => ({ price: parseFloat(p), qty: parseFloat(q) })).filter(x => x.qty > 0);
+        // Sort: bids desc, asks asc
+        depthBids.sort((a,b) => b.price - a.price);
+        depthAsks.sort((a,b) => a.price - b.price);
+        depthCalcMid();
+      } catch(e2) {}
+    };
+
+    ws.onclose = () => {
+      if (depthWs === ws && depthVisible && lwCurrentSym === sym) {
+        setTimeout(() => depthConnect(sym), 3000);
+      }
+    };
+  } catch(e) {}
+}
+
+function depthDisconnect() {
+  if (depthWs) { try { depthWs.close(); } catch(e){} depthWs = null; }
+}
+
+function depthCalcMid() {
+  const topBid = depthBids[0]?.price || 0;
+  const topAsk = depthAsks[0]?.price || 0;
+  if (topBid && topAsk) depthMid = (topBid + topAsk) / 2;
+}
+
+// ── Compute cumulative quantities
+function depthCumulative(levels) {
+  let cum = 0;
+  return levels.slice(0, DEPTH_LEVELS).map(l => {
+    cum += l.qty;
+    return { price: l.price, qty: l.qty, cumQty: cum };
+  });
+}
+
+// ── Draw loop
+function depthStartDraw() {
+  if (depthRAF) cancelAnimationFrame(depthRAF);
+  function frame() {
+    depthDraw();
+    if (depthVisible) depthRAF = requestAnimationFrame(frame);
+  }
+  depthRAF = requestAnimationFrame(frame);
+}
+
+// ── Main draw
+function depthDraw() {
+  if (!depthCtx || !depthCanvas_ || !depthVisible) return;
+  const W = DEPTH_W;
+  const H = depthCanvas_.height;
+  if (!H) return;
+
+  // Resize if needed
+  const area = document.getElementById('chartArea');
+  if (area && depthCanvas_.height !== area.clientHeight) {
+    depthCanvas_.height = area.clientHeight;
+  }
+
+  depthCtx.clearRect(0, 0, W, H);
+
+  // Background
+  depthCtx.fillStyle = 'rgba(10,12,15,.88)';
+  depthCtx.fillRect(0, 0, W, H);
+
+  // Left separator
+  depthCtx.strokeStyle = '#1e2535';
+  depthCtx.lineWidth = 1;
+  depthCtx.beginPath();
+  depthCtx.moveTo(0, 0);
+  depthCtx.lineTo(0, H);
+  depthCtx.stroke();
+
+  if (!depthBids.length || !depthAsks.length) {
+    depthCtx.fillStyle = '#4a5a78';
+    depthCtx.font = '8px IBM Plex Mono';
+    depthCtx.textAlign = 'center';
+    depthCtx.fillText('Loading', W/2, H/2 - 6);
+    depthCtx.fillText('depth...', W/2, H/2 + 6);
+    return;
+  }
+
+  // Use current LW chart price scale to map price → Y
+  const idr = isIDR(lwCurrentSym || '');
+
+  // Get visible price range from LW chart
+  let priceMin, priceMax;
+  try {
+    const visible = lwc?.timeScale().getVisibleRange();
+    // Use bids/asks range as fallback
+    const allPrices = [...depthBids, ...depthAsks].map(x => x.price);
+    priceMin = Math.min(...allPrices) * 0.998;
+    priceMax = Math.max(...allPrices) * 1.002;
+
+    // Try to get from LW price scale
+    if (lwSeries) {
+      const logRange = lwc?.timeScale().getVisibleLogicalRange();
+      // Use mid price ±2% as display range
+      if (depthMid) {
+        priceMin = depthMid * 0.988;
+        priceMax = depthMid * 1.012;
+      }
+    }
+  } catch(e) {
+    if (depthMid) { priceMin = depthMid * 0.988; priceMax = depthMid * 1.012; }
+    else { priceMin = 60000; priceMax = 76000; }
+  }
+
+  const priceRange = priceMax - priceMin || 1;
+  const p2y = (price) => H - ((price - priceMin) / priceRange) * H;
+
+  // Compute cumulative
+  const bids = depthCumulative(depthBids);
+  const asks = depthCumulative(depthAsks);
+
+  const maxCum = Math.max(
+    bids[bids.length - 1]?.cumQty || 1,
+    asks[asks.length - 1]?.cumQty || 1
+  );
+
+  // Draw bid bars (green) — each level as horizontal bar
+  bids.forEach(b => {
+    const y     = p2y(b.price);
+    const barW  = (b.cumQty / maxCum) * (W - 18);
+    depthCtx.fillStyle = `rgba(0,212,160,${0.15 + (b.cumQty / maxCum) * 0.35})`;
+    depthCtx.fillRect(0, y - 1.5, barW, 3);
+  });
+
+  // Draw ask bars (red) — same
+  asks.forEach(a => {
+    const y    = p2y(a.price);
+    const barW = (a.cumQty / maxCum) * (W - 18);
+    depthCtx.fillStyle = `rgba(255,74,110,${0.15 + (a.cumQty / maxCum) * 0.35})`;
+    depthCtx.fillRect(0, y - 1.5, barW, 3);
+  });
+
+  // Draw cumulative area — bids
+  depthCtx.beginPath();
+  depthCtx.moveTo(0, H);
+  bids.forEach(b => {
+    const y    = p2y(b.price);
+    const barW = (b.cumQty / maxCum) * (W - 18);
+    depthCtx.lineTo(barW, y);
+  });
+  depthCtx.lineTo(0, p2y(depthBids[depthBids.length-1]?.price || priceMin));
+  depthCtx.closePath();
+  depthCtx.fillStyle = 'rgba(0,212,160,.06)';
+  depthCtx.fill();
+
+  // Draw cumulative area — asks
+  depthCtx.beginPath();
+  depthCtx.moveTo(0, 0);
+  asks.forEach(a => {
+    const y    = p2y(a.price);
+    const barW = (a.cumQty / maxCum) * (W - 18);
+    depthCtx.lineTo(barW, y);
+  });
+  depthCtx.lineTo(0, p2y(depthAsks[depthAsks.length-1]?.price || priceMax));
+  depthCtx.closePath();
+  depthCtx.fillStyle = 'rgba(255,74,110,.06)';
+  depthCtx.fill();
+
+  // ── Large walls — highlight big orders
+  const bigThreshold = maxCum * 0.08;
+  depthBids.slice(0, DEPTH_LEVELS).forEach(b => {
+    if (b.qty < bigThreshold) return;
+    const y = p2y(b.price);
+    const barW = Math.max(4, (b.qty / (maxCum * 0.3)) * (W - 18));
+    depthCtx.fillStyle = 'rgba(0,212,160,.7)';
+    depthCtx.fillRect(0, y - 2, Math.min(barW, W - 18), 4);
+    // Glow
+    depthCtx.shadowColor = '#00d4a0';
+    depthCtx.shadowBlur  = 6;
+    depthCtx.fillRect(0, y - 2, Math.min(barW, W - 18), 4);
+    depthCtx.shadowBlur  = 0;
+  });
+  depthAsks.slice(0, DEPTH_LEVELS).forEach(a => {
+    if (a.qty < bigThreshold) return;
+    const y = p2y(a.price);
+    const barW = Math.max(4, (a.qty / (maxCum * 0.3)) * (W - 18));
+    depthCtx.fillStyle = 'rgba(255,74,110,.7)';
+    depthCtx.fillRect(0, y - 2, Math.min(barW, W - 18), 4);
+    depthCtx.shadowColor = '#ff4a6e';
+    depthCtx.shadowBlur  = 6;
+    depthCtx.fillRect(0, y - 2, Math.min(barW, W - 18), 4);
+    depthCtx.shadowBlur  = 0;
+  });
+
+  // ── Mid price line
+  if (depthMid) {
+    const midY = p2y(depthMid);
+    depthCtx.strokeStyle = 'rgba(200,212,232,.4)';
+    depthCtx.lineWidth   = 1;
+    depthCtx.setLineDash([3,3]);
+    depthCtx.beginPath();
+    depthCtx.moveTo(0, midY); depthCtx.lineTo(W - 18, midY);
+    depthCtx.stroke();
+    depthCtx.setLineDash([]);
+  }
+
+  // ── Price labels on right edge (small)
+  depthCtx.font      = '7.5px IBM Plex Mono';
+  depthCtx.textAlign = 'right';
+  const steps = 8;
+  for (let i = 0; i <= steps; i++) {
+    const price = priceMin + (priceMax - priceMin) * (i / steps);
+    const y     = p2y(price);
+    if (y < 10 || y > H - 6) continue;
+    const isBid = price <= depthMid;
+    depthCtx.fillStyle = isBid ? 'rgba(0,212,160,.55)' : 'rgba(255,74,110,.55)';
+    const label = price >= 1000 ? Math.round(price).toLocaleString() : price.toFixed(4);
+    depthCtx.fillText(label, W - 1, y + 3);
+  }
+
+  // ── Header labels
+  depthCtx.textAlign = 'center';
+  depthCtx.font      = '7px IBM Plex Mono';
+
+  // BID/ASK label
+  depthCtx.fillStyle = 'rgba(0,212,160,.7)';
+  depthCtx.fillText('BID', W/2 - 8, 10);
+  depthCtx.fillStyle = 'rgba(255,74,110,.7)';
+  depthCtx.fillText('ASK', W/2 + 10, 10);
+
+  // Spread
+  if (depthBids[0] && depthAsks[0]) {
+    const spread    = depthAsks[0].price - depthBids[0].price;
+    const spreadPct = (spread / depthMid * 100).toFixed(3);
+    depthCtx.fillStyle = 'rgba(200,212,232,.35)';
+    depthCtx.fillText(spreadPct + '%', W/2, H - 4);
+  }
+}
+
+// ── Hook: when chart symbol changes, reconnect depth WS
+const _origSelectSym = selectSym;
+selectSym = async function(sym) {
+  await _origSelectSym(sym);
+  if (depthVisible) {
+    depthDisconnect();
+    depthConnect(sym);
+  }
+};
+
+// ── Resize handler
+window.addEventListener('resize', () => {
+  if (!depthVisible || !depthCanvas_) return;
+  const area = document.getElementById('chartArea');
+  if (area) { depthCanvas_.height = area.clientHeight; }
+});
+
+
 // init() will be called by enterTerminal() after welcome screen closes
 // Fallback: run directly if welcome screen somehow not present
 if (!document.getElementById('welcomeScreen')) {
